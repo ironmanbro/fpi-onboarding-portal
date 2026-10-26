@@ -384,8 +384,23 @@ const POA=["Bank account statement (≤ 3 months old)","Utility bill (≤ 3 mont
 const POI_IND=["Passport","National ID card","Driving licence","Voter ID card"];
 const POA_IND=["Passport","Utility bill (≤ 3 months old)","Bank account statement (≤ 3 months old)","Driving licence"];
 const DESIG=["Director","Manager","Trustee","Partner","Authorised officer","Company secretary"];
-const CPT=["C01 · Legal person · ownership","C02 · Legal person · other means","C03 · Legal person · senior managing official","C04 · Trust · settlor","C05 · Trust · trustee","C06 · Trust · protector","C07 · Trust · beneficiary","C08 · Trust · other"];
-const OCC=["B · Business","S · Service","P · Professional","O · Others"];
+const CPT=["C01 · Legal person · ownership","C02 · Legal person · other means","C03 · Legal person · senior managing official","C04 · Trust · settlor","C05 · Trust · trustee","C06 · Trust · protector","C07 · Trust · beneficiary","C08 · Trust · other",
+ "C09 · Other arrangement · settlor equivalent","C10 · Other arrangement · trustee equivalent","C11 · Other arrangement · protector equivalent","C12 · Other arrangement · beneficiary equivalent","C13 · Other arrangement · other equivalent"];
+const OCC=["S · Service","B · Business","O · Others"];
+const REGULATORS=[["Monetary Authority of Singapore","Singapore"],["Financial Conduct Authority","United Kingdom"],["Securities and Exchange Commission","United States"],["Commission de Surveillance du Secteur Financier","Luxembourg"],["Central Bank of Ireland","Ireland"],["Financial Services Commission","Mauritius"],["Securities and Futures Commission","Hong Kong"],["Cayman Islands Monetary Authority","Cayman Islands"],["Financial Services Agency","Japan"],["Australian Securities and Investments Commission","Australia"],["Federal Financial Supervisory Authority","Germany"],["Autorité des marchés financiers","France"]];
+const BO_NONE="No natural person ultimately holds 10% or more beneficial ownership, directly or indirectly, or controls the entity. Details of the senior managing official are given instead.",BO_LIST="Beneficial owners above the materiality threshold for ownership and / or control are listed below.";
+const IMS_NONE="No entity holds 10% or more ownership or entitlement (shares, units, economic benefit), directly or indirectly, through single or multiple entities.",IMS_LIST="Entities holding 10% or more ownership or entitlement, directly or indirectly, are listed below.";
+const CTL_NONE="No entity controls the applicant through voting rights, agreements, arrangements or other means.",CTL_LIST="Controlling entities are listed below.";
+const LE_SELF="We are a legal entity in ourselves; our details are disclosed in the application form.",LE_OTHER="We are not a legal entity; details of the legal entity are below.";
+const FUS=["The applicant is taxable as a US person, or is an estate whose income is subject to US federal income tax regardless of source.","The applicant is taxable as a tax resident under the laws of a country outside India."];
+const MKT_ALL=["Yes to marketing by all of the above","No to marketing by all of the above"];
+const CUST_ADDR="Custodian's securities services department, Lower Parel, Mumbai 400013, India";
+const FATCA_DECL=["(i) Under penalty of perjury, I/we certify that the applicant's tax status selected above is correct.",
+ "(ii) I/We understand that the custodian is relying on this information to determine the status of the applicant in compliance with FATCA/CRS. The custodian cannot offer tax advice on FATCA/CRS or its impact on the applicant, and I/we will seek advice from a professional tax adviser for any tax questions.",
+ "(iii) I/We agree to submit a new form within 30 days if any information or certification on this form becomes incorrect.",
+ "(iv) I/We agree that, as may be required by domestic regulators or tax authorities, the custodian may report reportable details to the Indian tax authorities, or close or suspend the account.",
+ "(v) I/We certify that I/we provide the information on this form and, to the best of my/our knowledge and belief, the certification is true, correct and complete, including the taxpayer identification number of the applicant.",
+ "(vi) I/We certify that I/we have provided the information on this form to the best of my/our knowledge and belief and that the certification is true, correct and complete, including the taxpayer identification number or functional equivalent of the applicant."];
 
 /* ---------- Schema ---------- */
 const addr=(p,cls)=>[
@@ -393,6 +408,41 @@ const addr=(p,cls)=>[
  {id:p+"_pin",label:"PIN / ZIP / postal code",req:1},{id:p+"_city",label:"City / town",req:1},{id:p+"_state",label:"State / province"},
  {id:p+"_country",label:"Country",type:"country",req:1}].map(f=>cls?{...f,show:cls}:f);
 const yes=k=>s=>s[k]==="Yes";
+// Field validations from the BRS
+const LETTERS=(a,b)=>v=>new RegExp(`^[A-Za-z .'-]{${a},${b}}$`).test(v)?"":`Letters only, ${a}–${b} characters.`;
+const MAXLEN=n=>v=>String(v).length>n?`Up to ${n} characters.`:"";
+const DIGITS=n=>v=>new RegExp(`^\\d{1,${n}}$`).test(String(v).replace(/\s/g,""))?"":`Numbers only, up to ${n} digits.`;
+const EMAIL50=v=>EMAIL.test(v)&&String(v).length<=50?"":"Enter a valid email address (up to 50 characters).";
+const LINE=v=>/^[A-Za-z0-9 .,#@'&$\/-]{3,25}$/.test(v)?"":"3–25 characters: letters, numbers and . , - # @ ' & $ /";
+// Beneficiary bank and tax consultant addresses: BRS limits (tax consultant lines are all mandatory)
+const addrBRS=(p,tc)=>[
+ {id:p+"_l1",label:"Address line 1",req:1,valid:tc&&LINE},{id:p+"_l2",label:"Address line 2",req:tc?1:0,opt:!tc,valid:tc&&LINE},{id:p+"_l3",label:"Address line 3",req:tc?1:0,opt:!tc,valid:tc&&LINE},
+ {id:p+"_pin",label:"PIN / ZIP / postal code",req:1,valid:v=>/^[A-Za-z0-9 ]{1,11}$/.test(v)?"":"Letters and numbers only, up to 11 characters."},
+ {id:p+"_city",label:"City / town / district",req:1,valid:LETTERS(1,14)},{id:p+"_state",label:"State",req:1,valid:LETTERS(1,25)},{id:p+"_country",label:"Country",type:"country",req:1}];
+const uboOf=p=>(S.uboD||{})[p._id]||{};
+const pCountry=p=>S["kyc_"+p._id+"_"+(p.type==="Non-individual"?"cob":"nat")];
+const LEI_OK=v=>/^[A-Za-z0-9]{1,20}$/.test(v)?"":"Letters and numbers only, up to 20 characters.";
+const PCT=v=>+v>100||+v<0||isNaN(+v)?"0–100":"";
+const onBehalf=s=>s.category==="Category II"&&["Family office","Individual"].includes(s.subcat);
+// FATCA Section A, Q6.1–6.6: which ownership questions apply depends on the constitution type
+const cons=s=>(s.constitution||"")[0]||"";
+const fCo=s=>s.f6==="Yes"&&!!cons(s)&&"ADEJZ".includes(cons(s)),fPart=s=>s.f6==="Yes"&&cons(s)==="B",fTrust=s=>s.f6==="Yes"&&cons(s)==="H";
+const fOwnNo=s=>s.f6==="Yes"&&[[fCo,"f7"],[fPart,"f7b"],[fCo,"f8"],[fTrust,"f8b"]].every(([sh,k])=>!sh(s)||s[k]==="No");
+const sel=(k,label,opts,w)=>({k,label,type:"select",opts,req:1,w:w||150});
+/* Beneficial ownership declaration for one sub-fund (Annexure to CAF, BO declaration). Stored flat as sf_<rowId>_<field>. */
+function sfFields(r){
+ const k="sf_"+r._id+"_",tbl=(id,q,list,label,add,cols)=>({id:k+id,type:"table",label,min:1,add,show:s=>s[k+q]===list,cols});
+ return [{type:"h",label:"BO declaration · "+r.name},
+  {id:k+"q2",label:"Information regarding ultimate beneficial owner (end natural person)",type:"radio",stack:1,req:1,span:"full",opts:[BO_NONE,BO_LIST]},
+  tbl("bo","q2",BO_LIST,"Beneficial owners","Add beneficial owner",[{k:"name",label:"Name",req:1,w:170},{k:"addr",label:"Address",req:1,w:200},{k:"dob",label:"Date of birth",type:"date",req:1,w:150},
+   sel("tax","Tax residency jurisdiction",CN,170),sel("nat","Nationality",CN,170),{k:"alone",label:"Acting alone / together (names & addresses)",w:200},{k:"pct",label:"BO group % ownership",type:"num",w:110,valid:PCT},{k:"idNo",label:"Tax / social security / passport / other ID no.",w:200}]),
+  {id:k+"q3",label:"Information regarding intermediate material shareholder / owner entity",type:"radio",stack:1,req:1,span:"full",opts:[IMS_NONE,IMS_LIST]},
+  tbl("ims","q3",IMS_LIST,"Intermediate material shareholders","Add entity",[{k:"name",label:"Name of beneficial owner",req:1,w:180},sel("stake","Direct / indirect",["Direct","Indirect"],130),{k:"via",label:"Entities through which stake is held",w:200},
+   sel("c","Country of incorporation / nationality",CN,180),{k:"pct",label:"% stake held",type:"num",w:100,valid:PCT},sel("t","Individual / non-individual",["Individual","Non-individual"],160)]),
+  {id:k+"q4",label:"Beneficial ownership by control",type:"radio",stack:1,req:1,span:"full",opts:[CTL_NONE,CTL_LIST]},
+  tbl("ctl","q4",CTL_LIST,"Controlling entities","Add entity",[{k:"name",label:"Name of beneficial owner",req:1,w:180},{k:"method",label:"Method of control (incl. intermediate structures)",req:1,w:240},
+   sel("c","Country of incorporation / nationality",CN,180),{k:"pct",label:"% control",type:"num",w:100,valid:PCT},sel("t","Individual / non-individual",["Individual","Non-individual"],160)])];
+}
 /* KYC details for each related party (BRS "KYC Details related parties"). Stored flat as kyc_<partyId>_<field> so the normal field renderer and autosave work. */
 function kycFields(p){
  const k="kyc_"+p._id+"_",ind=p.type!=="Non-individual",cc=id=>(v,s)=>s[k+id+"_cc"]?"":"Choose the country code.";
@@ -532,8 +582,8 @@ const STEPS=[
   {id:"family",label:"Do a few people from the same family hold beneficial ownership and control together?",type:"yn",req:1}]},
  {id:"uboFatca",title:"UBO / SMO FATCA details",desc:"Tax information for each controlling person.",fields:[
   {type:"derived",id:"uboF",label:"FATCA details",filter:p=>p.ubo||p.smo,empty:"No party is marked as UBO or SMO yet.",cols:[
-   {k:"tin",label:"TIN",req:1,w:140},{k:"tinC",label:"TIN issuing country",type:"select",opts:CN,req:1,w:170},
-   {k:"cpt",label:"Controlling person type",type:"select",opts:CPT,req:1,w:250},{k:"occ",label:"Occupation",type:"select",opts:OCC,req:1,w:150}]}]}
+   {k:"tin",label:"TIN (optional)",w:140},{k:"tinC",label:"TIN issuing country",type:"select",opts:CN,reqIf:r=>!!r.tin,w:170,help:"Required when a TIN is entered."},
+   {k:"cpt",label:"Controlling person type",type:"select",opts:CPT,reqIf:r=>!!r.tin,w:250},{k:"occ",label:"Occupation type",type:"select",opts:OCC,reqIf:r=>!!r.tin,w:150}]}]}
 ]},
 {id:"reg",title:"FPI registration",sections:[
  {id:"im",title:"Investment management",desc:"Category of applicant and details of investment managers and the compliance officer.",fields:[
@@ -541,34 +591,37 @@ const STEPS=[
   {id:"im_sub",label:"Sub-category",ro:s=>s.subcat,type:"ro",span:2},
   {id:"mim",label:"Is the applicant seeking registration under a multi investment manager (MIM) structure?",type:"yn",req:1,help:"Not applicable for individuals."},
   {id:"imList",type:"table",label:"Investment managers registered under regulation 5(a) of the FPI Regulations",min:1,show:yes("mim"),add:"Add manager",cols:[
-   {k:"notReg",label:"Not registered with SEBI",type:"cb"},{k:"sebi",label:"SEBI registration no.",w:170},{k:"name",label:"Name of investment manager",req:1,w:220},{k:"exp",label:"Expiry date",type:"date",req:1,w:150}]},
+   {k:"notReg",label:"Not registered with SEBI",type:"cb",def:true},{k:"sebi",label:"SEBI registration no.",w:170,reqIf:r=>!r.notReg,en:r=>!r.notReg,help:"Required when the manager is registered with SEBI."},{k:"name",label:"Name of investment manager",req:1,w:220},{k:"exp",label:"Expiry date",type:"date",req:1,w:150}]},
   {id:"selfCert",label:"Has the applicant provided a valid self-certification (FATCA/CRS) form?",type:"radio",req:1,opts:["Yes","Not applicable"],span:"full"},
   {type:"h",label:"Compliance officer"},
   {id:"coName",label:"Name",req:1},{id:"coTitle",label:"Job title",req:1},{id:"coPhone",label:"Telephone",type:"phone",req:1},
   {id:"coEmail",label:"Email",type:"email",req:1},{id:"coFax",label:"Fax",opt:1}]},
- {id:"regulator",title:"Regulatory authority",desc:"The regulator that supervises the applicant, if any.",fields:[
-  {id:"rgName",label:"Name of the regulator",req:1},{id:"rgCountry",label:"Country",type:"country",req:1},{id:"rgWeb",label:"Website",opt:1},
-  {id:"rgNo",label:"Registration number / code with regulator",req:1},
-  {id:"rgCap",label:"Category / capacity in which the applicant is regulated",type:"textarea",req:1,span:"full"},
+ {id:"regulator",title:"Regulatory authority",desc:"The regulator that supervises the applicant, if applicable.",fields:[
+  {id:"rgName",label:"Name of the regulator",type:"select",opt:1,opts:REGULATORS.map(r=>r[0])},{id:"rgCountry",label:"Country",type:"ro",ro:s=>(REGULATORS.find(r=>r[0]===s.rgName)||[])[1]},{id:"rgWeb",label:"Website",opt:1},
+  {id:"rgNo",label:"Registration number / code with regulator",opt:1,reqIf:s=>!!s.rgName,help:"Required when a regulator is selected."},
+  {id:"rgCap",label:"Category / capacity in which the applicant is regulated",type:"textarea",opt:1,span:"full"},
   {id:"viaGc",label:"Is the applicant coming through a global custodian?",type:"yn",req:1},
-  {id:"gcName",label:"Name of global custodian",req:1,show:yes("viaGc")},{id:"gcReg",label:"Its regulator",req:1,show:yes("viaGc")},{id:"gcNo",label:"Registration number",req:1,show:yes("viaGc")},
+  {id:"gcName",label:"Name of global custodian",req:1,show:yes("viaGc")},{id:"gcReg",label:"Name of its regulator",opt:1,show:yes("viaGc")},{id:"gcNo",label:"Registration number / code with regulator",opt:1,show:yes("viaGc"),valid:MAXLEN(30)},
   ...addr("gc",yes("viaGc"))]},
  {id:"cust",title:"Custodian details",desc:"Your designated depository participant and authorised dealer bank are filled in for you.",fields:[
   {type:"note",cls:"info",label:"These details belong to your assigned custodian and are pre-filled. Contact your relationship manager if anything looks wrong."},
   {id:"ddpName",label:"DDP / custodian of securities",type:"ro",ro:()=>"Your assigned custodian"},
   {id:"ddpSebi",label:"SEBI registration number",type:"ro",ro:()=>"IN-DP-CUST-0005"},
   {id:"adBank",label:"AD Category I bank (approved by RBI)",type:"ro",ro:()=>"Assigned AD Category I bank, Mumbai"},
+  {id:"adAddr",label:"AD Category I bank address",type:"ro",span:"full",ro:()=>"Treasury department, Bandra-Kurla Complex, Bandra (E), Mumbai, Maharashtra 400051"},
   {type:"h",label:"Disciplinary history"},
   {type:"note",label:"Has the applicant, its parent or holding company, or its associate / promoter / investment manager ever been subject to criminal liability, suspended from operations, had its registration revoked, or faced regulatory action in its home jurisdiction that affects FPI registration in India?"},
   {id:"disc",label:"Any disciplinary history?",type:"yn",req:1},
-  {id:"discDetail",label:"Please give details",type:"textarea",req:1,span:"full",show:yes("disc")}]},
+  {id:"discDetail",label:"Please give details",type:"textarea",req:1,span:"full",show:yes("disc"),valid:MAXLEN(3500)}]},
  {id:"club",title:"Clubbing of investments",desc:"Declare common ownership or control with other FPIs, which affects investment limits.",fields:[
   {id:"clubOpt",label:"Which statement applies?",type:"radio",stack:1,req:1,span:"full",opts:[
    "We do not share common ownership (directly or indirectly) of more than 50%, or common control, with other FPIs, and are not exempt under regulation 22(4).",
    "We share common ownership of more than 50%, or common control, with other FPIs and are not exempt under regulation 22(4). Details of the investor group are given below.",
    "Investment limits are not clubbed because we are a public retail fund under regulation 22(4)."]},
   {id:"clubList",type:"table",label:"Investor group",min:1,show:s=>s.clubOpt&&s.clubOpt.startsWith("We share"),add:"Add FPI",cols:[
-   {k:"name",label:"Name of FPI / subscriber",req:1,w:220},{k:"odi",label:"If ODI subscriber, name of issuing FPI",w:220},{k:"reg",label:"FPI registration number",req:1,w:180}]}]},
+   {k:"name",label:"Name of FPI / subscriber",req:1,w:220},{k:"odi",label:"If ODI subscriber, name of issuing FPI",w:220},{k:"reg",label:"FPI registration number",req:1,w:180}]},
+  {id:"retailList",type:"table",label:"Public retail funds with common control (regulation 22(4))",min:1,show:s=>(s.clubOpt||"").startsWith("Investment limits"),add:"Add FPI",cols:[
+   {k:"name",label:"Name of FPI",req:1,w:220},{k:"reg",label:"FPI registration number",req:1,w:180},{k:"ctrl",label:"Name of common controlling person",req:1,w:220}]}]},
  {id:"prior",title:"Prior association",desc:"Earlier registrations with Indian securities markets.",fields:[
   {id:"priorHas",label:"Was the applicant ever associated with Indian securities markets as FPI, FII, sub-account, QFI or FVCI?",type:"yn",req:1},
   {id:"priorList",type:"table",label:"Previous registrations",min:1,show:yes("priorHas"),add:"Add registration",cols:[
@@ -576,14 +629,14 @@ const STEPS=[
 ]},
 {id:"caf",title:"Annexure to CAF",sections:[
  {id:"partA",title:"Part A · ODI hedging & bank declaration",desc:"Annexure to the common application form.",fields:[
-  {id:"odiHedge",label:"Separate registration for hedging ODIs with derivatives as underlying in India?",type:"ynna",req:1},
-  {id:"catIList",type:"table",label:"Eligible Category I entities registered under regulation 5(a)(i)(B)",min:1,show:yes("odiHedge"),add:"Add entity",cols:[
-   {k:"name",label:"Name of entity",req:1,w:200},{k:"country",label:"Country",type:"select",opts:CN,req:1,w:170},{k:"etype",label:"Entity type under 5(a)",type:"select",opts:["Public limited company","Private limited company","Trust","Fund"],req:1,w:200}]},
+  {id:"odiHedge",label:"Separate registration for hedging ODIs with derivatives as underlying in India?",type:"radio",req:1,opts:s=>s.category==="Category I"?["Yes","No"]:["Not applicable"],help:"Applies to Category I only. Fixed at Not applicable for Category II."},
+  {id:"catIUndertake",label:"Undertaking from eligible Category I entity under regulation 5(a)(v)(B): we undertake that we shall be responsible and liable for all acts of commission and omission of the applicant, and other deeds and things done by them, under the SEBI (Foreign Portfolio Investors) Regulations, 2019.",type:"check",req:1,show:yes("odiHedge")},
   {id:"bankDecl",label:"Bank or subsidiary of a bank",type:"radio",stack:1,req:1,span:"full",opts:[
    "We are not a bank or a subsidiary of a bank.",
    "We are a bank (or a subsidiary of one) and our group has a branch or representative office in India.",
    "We are a bank (or a subsidiary of one) and our group has no branch or representative office in India."]},
-  {id:"branchName",label:"Name of branch or representative office in India",req:1,span:2,show:s=>(s.bankDecl||"").includes("has a branch")}]},
+  {id:"branchName",label:"Name of branch or representative office in India",req:1,span:2,show:s=>(s.bankDecl||"").includes("has a branch")},
+  {id:"bankEntity",label:"Name of entity",req:1,span:2,show:s=>(s.bankDecl||"").includes("has no branch")}]},
  {id:"partB",title:"Part B · NRI / OCI / RI declaration",desc:"Not applicable if seeking registration under regulation 5(a)(i).",fields:[
   {id:"nriA",label:"Section A · NRI / OCI / RI control",type:"radio",stack:1,req:1,span:"full",opts:[
    "No NRI / OCI / RI exercises control over the FPI.",
@@ -596,13 +649,32 @@ const STEPS=[
    "Contribution of a single NRI / OCI / RI is below 25%, and of all of them together below 50%, of the corpus.",
    "NRI / OCI / RI investment is not yet within these limits; we will meet the conditions within two years of registration.",
    "None of the above applies; we will invest only in mutual funds in India."]},
+  {type:"h",label:"Investments on behalf of clients (regulation 5(b)(vi))",show:onBehalf},
+  {id:"cl1",label:"Our clients are individuals and / or family offices.",type:"check",req:1,show:onBehalf},
+  {id:"cl2",label:"Our clients are eligible for registration as FPI and are not dealing on behalf of third parties.",type:"check",req:1,show:onBehalf},
+  {id:"cl3",label:"KYC prescribed by SEBI has been performed on our clients.",type:"check",req:1,show:onBehalf},
+  {id:"cl4",label:"We will give the DDP complete investor details of our clients every quarter, by the end of the month after each calendar quarter.",type:"check",req:1,show:onBehalf},
   {id:"kraConsent",label:"Should KRAs ask for consent before letting an intermediary download your KYC information?",type:"yn",req:1},
-  {type:"h",label:"Authorised representative of FPI"},
-  {id:"arName",label:"Name",req:1},{id:"arE1",label:"Email 1",type:"email",req:1},{id:"arE2",label:"Email 2",type:"email",opt:1},
-  {id:"arE3",label:"Email 3",type:"email",opt:1},{id:"arMob",label:"Mobile",type:"phone",req:1}]},
- {id:"bo",title:"BO declaration",desc:"Segregated portfolios for sub-funds or share classes.",fields:[
+  {type:"h",label:"Authorised representative of FPI",show:yes("kraConsent")},
+  {id:"arName",label:"Name",req:1,show:yes("kraConsent")},{id:"arE1",label:"Email 1",type:"email",req:1,show:yes("kraConsent")},{id:"arE2",label:"Email 2",type:"email",opt:1,show:yes("kraConsent")},
+  {id:"arE3",label:"Email 3",type:"email",opt:1,show:yes("kraConsent")},{id:"arMob",label:"Mobile",type:"phone",req:1,show:yes("kraConsent")}]},
+ {id:"benOwn",title:"Beneficial ownership",desc:"Intermediate material shareholders and controlling entities. Rows come from UBO / SMO details; add an LEI where one exists.",fields:[
+  {id:"q9a",label:"Details on the basis of ownership or entitlement",type:"radio",stack:1,req:1,span:"full",opts:[IMS_NONE,IMS_LIST]},
+  {type:"derived",id:"imsD",label:"Holding 10% or more",show:s=>s.q9a===IMS_LIST,filter:p=>(p.ubo||p.smo)&&uboOf(p).own,empty:"No UBO / SMO has Ownership ticked in UBO / SMO details.",cols:[
+   {k:"stake",label:"Direct / indirect",type:"ro",ro:p=>uboOf(p).stake},{k:"via",label:"Entity through which stake is held",type:"ro",ro:p=>uboOf(p).via},{k:"c",label:"Country of incorporation / nationality",type:"ro",ro:pCountry},
+   {k:"pct",label:"% stake",type:"ro",ro:p=>uboOf(p).share},{k:"t",label:"Individual / non-individual",type:"ro",ro:p=>p.type},{k:"lei",label:"LEI (if any)",w:200,valid:LEI_OK}]},
+  {id:"q9b",label:"Beneficial ownership by control",type:"radio",stack:1,req:1,span:"full",opts:[CTL_NONE,CTL_LIST]},
+  {type:"derived",id:"ctlD",label:"Controlling entities and persons",show:s=>s.q9b===CTL_LIST,filter:p=>(p.ubo||p.smo)&&uboOf(p).ctl,empty:"No UBO / SMO has Control ticked in UBO / SMO details.",cols:[
+   {k:"method",label:"Method of control",type:"ro",ro:p=>uboOf(p).method},{k:"c",label:"Country of incorporation / nationality",type:"ro",ro:pCountry},{k:"pct",label:"% control",type:"ro",ro:p=>uboOf(p).ctlPct},
+   {k:"t",label:"Individual / non-individual",type:"ro",ro:p=>p.type},{k:"lei",label:"LEI (if any)",w:200,valid:LEI_OK}]},
+  {id:"legalEnt",label:"Details of legal entity",type:"radio",stack:1,req:1,span:"full",opts:[LE_SELF,LE_OTHER]},
+  {id:"leName",label:"Name of legal entity",req:1,show:s=>s.legalEnt===LE_OTHER},{id:"leStruct",label:"Structure",req:1,show:s=>s.legalEnt===LE_OTHER},
+  {id:"leCountry",label:"Country of incorporation / establishment / formation",type:"country",req:1,show:s=>s.legalEnt===LE_OTHER},
+  {id:"imUndertake",label:"Undertaking from investment manager under regulation 5(a)(iv)(II) or 5(a)(v)(A): we are the investment manager of the applicant, responsible for its investment activity, and undertake that we shall be responsible and liable for all acts of commission and omission of the applicant under the SEBI (Foreign Portfolio Investors) Regulations, 2019.",type:"check",req:1,show:yes("mim")}]},
+ {id:"bo",title:"BO declaration",desc:"Segregated portfolios for sub-funds or share classes, with a beneficial ownership declaration for each sub-fund.",get fields(){return [
   {id:"segPort",label:"Does the applicant maintain a segregated portfolio for each sub-fund, share class or equivalent structure that intends to invest in India?",type:"yn",req:1},
-  {id:"subFunds",type:"table",label:"Sub-funds",min:1,show:yes("segPort"),add:"Add sub-fund",cols:[{k:"name",label:"Name of sub-fund",req:1,w:320}]}]}
+  {id:"subFunds",type:"table",label:"Sub-funds",min:1,show:yes("segPort"),add:"Add sub-fund",cols:[{k:"name",label:"Name of sub-fund / share class",req:1,w:320}]},
+  ...(S&&S.segPort==="Yes"?(S.subFunds||[]).filter(r=>r.name).flatMap(sfFields):[])]}}
 ]},
 {id:"add",title:"Additional information",sections:[
  {id:"aml",title:"Anti-money laundering",desc:"Answer for the institution as a whole. Choose NA only when a question does not apply.",fields:[
@@ -623,37 +695,43 @@ const STEPS=[
   {id:"a13",label:"Is customer due diligence information reviewed and updated regularly?",type:"ynna",req:1},
   {id:"a14",label:"Are beneficial owners of corporate customers verified (except holdings below 10%)?",type:"ynna",req:1},
   {id:"a15",label:"Must KYC records be retained?",type:"ynna",req:1},
-  {id:"a15y",label:"Retention period (years)",type:"num",req:1,show:yes("a15")},
+  {id:"a15y",label:"Retention period (years)",type:"num",req:1,show:yes("a15"),valid:DIGITS(3)},
   {type:"h",label:"Business profile"},
-  {id:"bizTypes",label:"Banking or financial services you provide",type:"checks",req:1,span:"full",opts:["Current account / third-party payment","Custody","Deposit taking","Derivatives","Foreign currency dealing","Fund management","Futures and options trading","Leasing","Lending","Securities dealing","Trade finance / letters of credit","Others"]},
-  {id:"custBase",label:"Your customer base",type:"checks",req:1,span:"full",opts:["Corporate · domestic","Corporate · international","Financial institutions · domestic","Financial institutions · international","Retail · domestic","Retail · international"]},
+  {id:"bizTypes",label:"Banking or financial services you provide",type:"checks",req:1,span:"full",opts:["Current account / third-party payment","Custody","Deposit taking","Derivatives","Foreign currency dealing","Fund management","Futures and options trading","Leasing","Lending","Securities dealing","Trade finance / letters of credit","Others","NA"]},
+  {id:"bizOther",label:"Specify other services",req:1,show:s=>(s.bizTypes||[]).includes("Others"),valid:LETTERS(3,30)},
+  {id:"custBase",label:"Your customer base",type:"checks",req:1,span:"full",opts:["Corporate · domestic","Corporate · international","Financial institutions · domestic","Financial institutions · international","Retail · domestic","Retail · international","NA"]},
   {type:"h",label:"Controls"},
   {id:"a16",label:"Do you prohibit relationships or transactions with shell banks?",type:"ynna",req:1},
   {id:"a17",label:"Do you screen and block transactions with UN-sanctioned countries?",type:"ynna",req:1},
   {id:"a18",label:"Do you report suspicious transactions to the competent authorities?",type:"ynna",req:1},
   {id:"a19",label:"Do staff receive regular AML training?",type:"ynna",req:1},
-  {id:"a19f",label:"Training frequency (times per year)",type:"num",req:1,show:yes("a19")}]},
+  {id:"a19f",label:"Training frequency (times per year)",type:"num",req:1,show:yes("a19"),valid:DIGITS(3)}]},
  {id:"addl",title:"Additional details",desc:"Legal entity identifier, beneficiary bank, tax consultant and communication preferences.",tabs:["Entity & bank","Tax consultant","Communication","Consents"],fields:[
   {tab:0,type:"h",label:"Entity"},
-  {tab:0,id:"lei",label:"LEI number",req:1,help:"20-character Legal Entity Identifier."},{tab:0,id:"leiExp",label:"LEI expiry date",type:"date",req:1},
-  {tab:0,id:"finStmt",label:"Does the applicant have financial statements for the last 2 years?",type:"yn",req:1},
-  {tab:0,id:"opMode",label:"Mode of operation for investor",type:"radio",req:1,span:"full",opts:["Any one singly","As per resolution","Jointly","Others"]},
-  {tab:0,id:"brDate",label:"Date of board resolution",type:"date",req:1},
+  {tab:0,id:"lei",label:"LEI number",req:1,help:"Legal Entity Identifier: letters and numbers, up to 20 characters.",valid:LEI_OK},{tab:0,id:"leiExp",label:"LEI expiry date",type:"date",opt:1},
+  {tab:0,id:"finStmt",label:"Does the applicant have financial statements for the last 2 years?",type:"yn",req:1,help:"Yes: upload the financials for the last 2 years. No: sign the financial declaration instead."},
+  {tab:0,id:"opMode",label:"Mode of operation for investor",type:"radio",req:1,span:"full",opts:["Any one singly","As per resolution","Jointly by","Others"]},
+  {tab:0,id:"opSpec",label:"Specify",req:1,show:s=>["Jointly by","Others"].includes(s.opMode),valid:LETTERS(1,100)},
+  {tab:0,id:"brDate",label:"Date of board resolution signing",type:"date",req:1,help:"Within the last 15 days or the next 6 months.",valid:v=>{const d=(new Date(v)-new Date(new Date().toISOString().slice(0,10)))/864e5;return d<-15?"Must not be more than 15 days in the past.":d>183?"Must not be more than 6 months ahead.":""}},
+  {tab:0,id:"poaExp",label:"Power of attorney expiry date",type:"date",opt:1},{tab:0,id:"brExp",label:"Board resolution expiry date",type:"date",opt:1},
   {tab:0,type:"h",label:"Beneficiary bank"},
-  {tab:0,id:"bbName",label:"Beneficiary name",req:1},{tab:0,id:"bbAcct",label:"Account number",req:1},{tab:0,id:"bbBank",label:"Beneficiary bank",req:1},
-  ...addr("bb").map(f=>({...f,tab:0})),
-  {tab:0,id:"bbSwift",label:"SWIFT / BIC code",req:1},{tab:0,id:"bbIban",label:"IBAN",opt:1},
-  {tab:1,id:"tcName",label:"Name of tax consultant",req:1},{tab:1,id:"tcContact",label:"Contact person",req:1},{tab:1,id:"tcEmail",label:"Email",type:"email",req:1},
-  ...addr("tc").map(f=>({...f,tab:1})),
-  {tab:1,id:"tcPhone",label:"Phone",type:"phone",req:1},
-  {tab:2,id:"invEmails",type:"table",label:"Custodian will accept instructions from these investor emails",min:1,add:"Add email",cols:[
-   {k:"name",label:"Name",req:1,w:160},{k:"desig",label:"Designation",req:1,w:140},{k:"as",label:"Authorised signatory",type:"select",opts:YN,req:1,w:120},{k:"email",label:"Email",req:1,w:200},{k:"rem",label:"Remarks",w:140}]},
-  {tab:2,id:"opsEmails",type:"table",label:"Operational contacts",min:1,add:"Add email",cols:[{k:"email",label:"Email for operational matters",req:1,w:320}]},
-  {tab:2,id:"escEmails",type:"table",label:"Escalation contacts",min:1,add:"Add email",cols:[{k:"email",label:"Email for escalations / critical matters",req:1,w:320}]},
-  {tab:3,id:"mkt",label:"How may we contact you about products and offers?",type:"checks",span:"full",opts:["Post","Email","Social media","SMS / text","Telephone"],help:"Optional. Leave all unticked to receive no marketing."},
+  {tab:0,id:"bbName",label:"Beneficiary name",req:1,valid:LETTERS(1,150)},{tab:0,id:"bbAcct",label:"Account number",req:1,valid:DIGITS(34)},{tab:0,id:"bbBank",label:"Beneficiary bank",req:1,valid:LETTERS(1,150)},
+  ...addrBRS("bb").map(f=>({...f,tab:0})),
+  {tab:0,id:"bbSwift",label:"SWIFT / BIC code",req:1,valid:v=>/^[A-Za-z0-9]{8,11}$/.test(v)?"":"8–11 letters and numbers."},{tab:0,id:"bbIban",label:"IBAN",opt:1,valid:v=>/^[A-Za-z0-9]{1,34}$/.test(v)?"":"Letters and numbers only, up to 34."},
+  {tab:1,id:"tcName",label:"Name of tax consultant",req:1,valid:v=>/^[A-Za-z .,#@'&$-]{3,150}$/.test(v)?"":"3–150 characters: letters and . , - # @ ' & $"},{tab:1,id:"tcContact",label:"Contact person",req:1,valid:LETTERS(3,150)},{tab:1,id:"tcEmail",label:"Email",type:"email",req:1,valid:EMAIL50},
+  ...addrBRS("tc",1).map(f=>({...f,tab:1})),
+  {tab:1,id:"tcPhone",label:"Phone",type:"phone",req:1,valid:DIGITS(10)},
+  {tab:2,id:"invEmails",type:"table",label:"Custodian will accept instructions from these investor emails",min:1,max:15,add:"Add email",cols:[
+   {k:"name",label:"Name",req:1,w:160,valid:LETTERS(3,150)},{k:"desig",label:"Designation",req:1,w:140,valid:LETTERS(3,20)},{k:"as",label:"Authorised signatory",type:"select",opts:YN,req:1,w:120},{k:"email",label:"Email",req:1,w:200,valid:EMAIL50},{k:"rem",label:"Remarks",w:140,valid:MAXLEN(150)}]},
+  {tab:2,id:"custEmails",type:"table",label:"Investor will receive mails from these custodian emails",max:15,add:"Add email",cols:[
+   {k:"name",label:"Name",req:1,w:160,valid:LETTERS(3,150)},{k:"desig",label:"Designation",req:1,w:140,valid:LETTERS(3,20)},{k:"as",label:"Authorised signatory",type:"select",opts:YN,req:1,w:120},{k:"email",label:"Email",req:1,w:200,valid:EMAIL50},{k:"rem",label:"Remarks",w:140,valid:MAXLEN(150)}]},
+  {tab:2,id:"opsEmails",type:"table",label:"Operational contacts",min:1,max:5,add:"Add email",cols:[{k:"email",label:"Email for operational matters",req:1,w:320,valid:EMAIL50}]},
+  {tab:2,id:"escEmails",type:"table",label:"Escalation contacts",min:1,max:5,add:"Add email",cols:[{k:"email",label:"Email for escalations / critical matters",req:1,w:320,valid:EMAIL50}]},
+  {tab:3,id:"mkt",label:"How may we contact you about products and offers?",type:"checks",span:"full",opts:["Post","Email","Social media","SMS / text","Telephone",...MKT_ALL],help:"Optional. The two \"all of the above\" choices can't be combined with others."},
   {tab:3,id:"grpShare",label:"May we share your details with group entities or partners for marketing?",type:"radio",stack:1,req:1,span:"full",opts:["Yes, group companies may contact me","Yes, partners may contact me","No, neither may contact me"]},
-  {tab:3,id:"custAddr",label:"Use the custodian's address as your correspondence address?",type:"yn",req:1},
-  ...addr("corr",s=>s.custAddr==="No").map(f=>({...f,tab:3})),
+  {tab:3,id:"custAddr",label:"Use the custodian's address as your correspondence address?",type:"yn",req:1,help:"No uses your registered address from KYC details."},
+  {tab:3,id:"corrAddr",label:"Correspondence address",type:"ro",span:"full",show:s=>!!s.custAddr,ro:s=>s.custAddr==="Yes"?CUST_ADDR:["reg_l1","reg_l2","reg_l3","reg_pin","reg_city","reg_state","reg_country"].map(k=>s[k]).filter(Boolean).join(", ")},
+  {tab:3,id:"corrTel",label:"Telephone",type:"ro",show:s=>!!s.custAddr,ro:s=>s.custAddr==="Yes"?"Custodian's service desk":[s.telReg_cc,s.telReg].filter(Boolean).join(" ")},
   {tab:3,id:"odiDecl",label:"Offshore derivative instruments (ODI)",type:"radio",stack:1,req:1,span:"full",opts:[
    "We are eligible to issue ODIs and have issued them in line with applicable guidelines.",
    "We have identified and verified the beneficial owner in each subscribing entity as per SEBI guidelines.",
@@ -662,22 +740,27 @@ const STEPS=[
    "Seeking registration as an FPI with no underlying fund registered as FPI; BO/SMO details are given in the CAF annexure.",
    "Seeking registration and have obtained separate FPI registrations for underlying funds; BO/SMO details are in the CAF annexure.",
    "Not registered as an FPI; applying for underlying funds and listing them with their KYC documents."]}]},
- {id:"fatca",title:"FATCA details",desc:"Section A decides which entity-type questions apply.",fields:[
+ {id:"fatca",title:"FATCA details",desc:"Disclose any foreign citizenship, contact information or foreign tax residency. Section A decides which ownership questions apply.",fields:[
   {type:"h",label:"Section A"},
   {id:"f1",label:"Is the account holder a government body or an international organisation?",type:"yn",req:1},
   {id:"f2",label:"Is the account holder listed on a recognised stock exchange?",type:"yn",req:1},
+  {id:"fExch",label:"Name of stock exchange",req:1,show:yes("f2"),valid:v=>/^[A-Za-z .-]{1,135}$/.test(v)?"":"Letters, . and - only, up to 135 characters."},
   {id:"f3",label:"Is the account holder an Indian financial institution?",type:"yn",req:1},
-  {id:"f4",label:"Do you have a GIIN?",type:"yn",req:1,help:"Global Intermediary Identification Number issued under FATCA."},
-  {id:"giin",label:"GIIN",req:1,show:yes("f4"),ph:"XXXXXX.XXXXX.XX.XXX"},
+  {id:"f4",label:"Do you have a GIIN?",type:"yn",req:1,show:yes("f3"),help:"Global Intermediary Identification Number issued under FATCA."},
+  {id:"giin",label:"GIIN",req:1,show:s=>s.f3==="Yes"&&s.f4==="Yes",ph:"XXXXXX.XXXXX.XX.XXX",valid:v=>/^[A-Za-z0-9.]{1,19}$/.test(v)?"":"Letters and numbers, up to 19 characters."},
+  {id:"giinWhy",label:"Reason for not having a GIIN",req:1,show:s=>s.f3==="Yes"&&s.f4==="No",valid:v=>/^[A-Za-z .-]{1,50}$/.test(v)?"":"Letters, . and - only, up to 50 characters."},
   {id:"f5",label:"Is the account holder tax resident of any country other than India?",type:"yn",req:1},
   {id:"f6",label:"Is the entity substantially owned or controlled by non-Indian tax residents or US persons?",type:"yn",req:1},
   {type:"h",label:"Based on your entity type",show:yes("f6")},
-  {id:"f7",label:"Company: does any natural person hold more than 10% of shares, capital or profits?",type:"yn",req:1,show:yes("f6")},
-  {id:"f8",label:"Unincorporated association: does any natural person hold more than 15% of property, capital or profits?",type:"yn",req:1,show:yes("f6")},
-  {id:"f9",label:"Does any natural person exercise control through voting rights, agreements or other means?",type:"yn",req:1,show:yes("f6")},
-  {id:"f10",label:"Is there a natural person holding the position of senior managing official?",type:"yn",req:1,show:yes("f6")},
-  {type:"h",label:"Section B"},
-  {id:"fConsent",label:"I consent to the information above being shared with tax authorities as required under FATCA/CRS.",type:"check",req:1}]},
+  {id:"f7",label:"Company: does any natural person hold more than 10% of shares, capital or profits (directly or through a chain of ownership)?",type:"yn",req:1,show:fCo},
+  {id:"f7b",label:"Partnership: does any natural person hold more than 10% of the capital or profits of the firm?",type:"yn",req:1,show:fPart},
+  {id:"f8",label:"Unincorporated association or body of individuals: does any natural person hold more than 15% of property, capital or profits?",type:"yn",req:1,show:fCo},
+  {id:"f8b",label:"Trust: is there a settlor, trustee, protector, beneficiary with 10% or more interest, or any person exercising ultimate effective control over the trust?",type:"yn",req:1,show:fTrust},
+  {id:"f9",label:"Does any natural person exercise control over the entity through voting rights, agreements, arrangements or other means?",type:"yn",req:1,show:fOwnNo},
+  {id:"f10",label:"Is there a natural person holding the position of senior managing official?",type:"yn",req:1,show:s=>fOwnNo(s)&&s.f9==="No"},
+  {type:"h",label:"Section B · Declaration"},
+  {id:"fUs",label:"The applicant is",type:"radio",stack:1,req:1,span:"full",opts:FUS},
+  {id:"fConsent",label:"FATCA / CRS declaration",type:"consent",req:1}]},
  {id:"crs",title:"CRS self-certification",desc:"Self-certification of tax status under FATCA and CRS.",fields:[
   {id:"crsName",label:"Name of entity",type:"ro",ro:s=>s.invName},
   {id:"crsCust",label:"Customer ID (if existing)",opt:1},
@@ -707,11 +790,11 @@ const DOCS=[
  ["caf","Common application form (CAF)","form"],["cafAnx","Annexure to CAF","form"],["amlQ","AML questionnaire","form"],["autoDebit","Auto debit for charges","form"],
  ["bankDecl","Bank account opening declaration","form"],["bankSat","Bank satisfactory letter","form"],["benTc","Beneficiary & tax consultant","form"],["boardRes","Board resolution","form"],
  ["borrow","Borrowing declaration","form"],["deed","Deed of undertaking cum indemnity","form"],["emailAuth","Email authorisation letter","form"],["fatcaCrs","FATCA / CRS declaration","form"],
- ["fatcaSelf","FATCA self-certification form","form"],["finDecl","Financial declaration","form"],["granular","Granular reporting / SOP declaration","form"],["listSig","List of authorised signatories","form"],
+ ["fatcaSelf","FATCA self-certification form","form"],["finDecl","Financial declaration","form",s=>s.finStmt!=="Yes"],["granular","Granular reporting / SOP declaration","form"],["listSig","List of authorised signatories","form"],
  ["listDir","List of directors","form"],["mca","Master custody agreement","form"],["otherDecl","Other declarations","form"],["poa","Power of attorney","form"],
  ["tariff","Tariff sheet (FPI proposal)","form"],["uboDecl","UBO / SMO declaration","form"],
  ["bankProof","Bank account proof","upload"],["coi","Certificate of incorporation / formation","upload"],["constDocs","Constitutional documents (MoA / AoA / trust deed)","upload"],
- ["shareStruct","Shareholding structure chart","upload"],["agentPoi","Proof of identity of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"],["agentPoa","Proof of address of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"]
+ ["shareStruct","Shareholding structure chart","upload"],["fin2y","Financial statements for the last 2 years","upload",s=>s.finStmt==="Yes"],["agentPoi","Proof of identity of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"],["agentPoa","Proof of address of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"]
 ];
 
 /* ---------- State ---------- */
@@ -739,17 +822,17 @@ function sample(){
   family:"No",
   uboF:{p1:{tin:"S8712345D",tinC:"Singapore",cpt:CPT[0],occ:OCC[0]},p4:{tin:"S9023456G",tinC:"Singapore",cpt:CPT[0],occ:OCC[2]}},
   mim:"No",selfCert:"Yes",coName:"Rahul Iyer",coTitle:"Head of Compliance",coPhone_cc:"+65",coPhone:"6123 4511",coEmail:"compliance@asterridge.example",
-  rgName:"Monetary authority of the home jurisdiction",rgCountry:"Singapore",rgNo:"CMS100845",rgCap:"Registered charity and licensed fund management company (accredited investors only).",viaGc:"No",
+  rgName:"Monetary Authority of Singapore",rgNo:"CMS100845",rgCap:"Registered charity and licensed fund management company (accredited investors only).",viaGc:"No",
   disc:"No",clubOpt:"We do not share common ownership (directly or indirectly) of more than 50%, or common control, with other FPIs, and are not exempt under regulation 22(4).",
-  priorHas:"No",odiHedge:"NA",bankDecl:"We are not a bank or a subsidiary of a bank.",
+  priorHas:"No",odiHedge:"Not applicable",q9a:IMS_LIST,q9b:CTL_LIST,legalEnt:LE_SELF,fUs:FUS[1],bankDecl:"We are not a bank or a subsidiary of a bank.",
   uboF:{p1:{tin:"S8712345D",tinC:"Singapore",cpt:CPT[0],occ:OCC[0]},p2:{tin:"201811223M",tinC:"Singapore",cpt:CPT[0],occ:OCC[0]},p3:{tin:"S7654321A",tinC:"Singapore",cpt:CPT[2],occ:OCC[1]},p4:{tin:"S9023456G",tinC:"Singapore",cpt:CPT[0],occ:OCC[2]}},
   nriA:"No NRI / OCI / RI exercises control over the FPI.",nriB:"There are no NRI / OCI / RI constituents in the FPI.",kraConsent:"Yes",
   arName:"Ananya Rao",arE1:"ananya.rao@asterridge.example",arMob_cc:"+65",arMob:"9123 4567",segPort:"No",
   a1:"Yes",a2:"Yes",a3:"Yes",a4:"Yes",a5:"Yes",a6:"Yes",a7:"Yes",a8:"Yes",a9:"Yes",a10:"Yes",a11:"Yes",a12:"Yes",a13:"Yes",a14:"Yes",a15:"Yes",a15y:"8",
   bizTypes:["Custody","Fund management"],custBase:["Financial institutions · international"],a16:"Yes",a17:"Yes",a18:"Yes",a19:"Yes",a19f:"2",
-  lei:"5493001KJTIIGC8Y1R12",leiExp:"2027-06-30",finStmt:"Yes",opMode:"As per resolution",brDate:"2026-09-15",
-  bbName:"Aster Ridge Charitable Foundation Ltd",bbAcct:"0123456789",bbBank:"Harbour Commercial Bank",bb_l1:"1 Raffles Place",bb_l2:"#20-01",bb_pin:"048616",bb_city:"Singapore",bb_country:"Singapore",bbSwift:"HCBKSGSG",
-  tcName:"Meridian Tax Advisors LLP",tcContact:"Karan Shah",tcEmail:"karan@meridiantax.example",tc_l1:"5th Floor, Kalpataru Square",tc_l2:"Andheri East",tc_pin:"400059",tc_city:"Mumbai",tc_state:"Maharashtra",tc_country:"India",tcPhone_cc:"+91",tcPhone:"22 4000 1234",
+  lei:"5493001KJTIIGC8Y1R12",leiExp:"2027-06-30",finStmt:"Yes",opMode:"As per resolution",brDate:new Date().toISOString().slice(0,10),
+  bbName:"Aster Ridge Charitable Foundation Ltd",bbAcct:"0123456789",bbBank:"Harbour Commercial Bank",bb_l1:"1 Raffles Place",bb_l2:"#20-01",bb_pin:"048616",bb_city:"Singapore",bb_state:"Singapore",bb_country:"Singapore",bbSwift:"HCBKSGSG",
+  tcName:"Meridian Tax Advisors LLP",tcContact:"Karan Shah",tcEmail:"karan@meridiantax.example",tc_l1:"5th Floor, Kalpataru Sq",tc_l2:"Andheri East",tc_l3:"Near Metro Station",tc_pin:"400059",tc_city:"Mumbai",tc_state:"Maharashtra",tc_country:"India",tcPhone_cc:"+91",tcPhone:"22 4000 1234",
   invEmails:[{_id:"e1",name:"Ananya Rao",desig:"Director",as:"Yes",email:"ananya.rao@asterridge.example"},{_id:"e2",name:"Daniel Okafor",desig:"Director",as:"Yes",email:"daniel.okafor@asterridge.example"}],
   opsEmails:[{_id:"o1",email:"ops@asterridge.example"}],escEmails:[{_id:"x1",email:"escalations@asterridge.example"}],
   grpShare:"No, neither may contact me",custAddr:"Yes",odiDecl:"We are not eligible to issue ODIs.",
@@ -768,7 +851,8 @@ function pkycSample(){
   ...kyc("p4",{first:"Mei Lin",last:"Tan",gender:"Female",dob:"1986-02-21",poi:"National ID card",poiNo:"S8623456G",poa:POA_IND[1],email:"meilin.tan@asterridge.example",mob:"9345 6789"})};
 }
 const newId=()=>"FPI-"+new Date().toISOString().slice(2,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*9000)+1000);
-function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},partyList:[],docs:{},offSame:false}}
+// BRS defaults: self-certification Yes, segregated portfolio No, KRA consent Yes, not a bank, custodian address for correspondence
+function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},partyList:[],docs:{},offSame:false,selfCert:"Yes",segPort:"No",kraConsent:"Yes",bankDecl:"We are not a bank or a subsidiary of a bank.",custAddr:"Yes"}}
 let S=null,apps=[],homeErr="";
 let cur={st:0,se:0};
 const showErr={};
@@ -1035,7 +1119,7 @@ async function proceedBasic(){
  const miss=BASIC.some(f=>!f.opt&&isEmpty(NB[f.id]))||(ME.role==="rm"&&!NB._owner.trim());
  if(miss){renderBasic(true);return}
  const base=NB._sample?sample():blank();const {_sample,_owner,...vals}=NB;
- const data={...base,...vals,_sample:!!_sample,panHas:vals.regType===REG_TYPES[1]?"Yes":"No"};
+ const data={...base,...vals,_sample:!!_sample,panHas:vals.regType===REG_TYPES[1]?"Yes":"No",odiHedge:vals.category==="Category I"?"":"Not applicable"};
  if(!_sample)data.invName=ME.role==="investor"?ME.name:_owner;
  $("#basicDlg").close();
  try{await api("",{method:"POST",body:JSON.stringify({data,owner:_owner||ME.name,role:ME.role,user:ME.name,progress:0})});await openApp(data._id)}
@@ -1156,7 +1240,7 @@ function openSummary(title,_w,lh){
   sec.fields.forEach(f=>{
    if(!vis(f)||f.type==="h"||f.type==="note")return;
    if(f.type==="table"){const r=S[f.id]||[];rows+=`<tr><th>${esc(f.label)}</th><td>${r.length?r.map(x=>esc(f.cols.map(c=>v(x[c.k])).join(" · "))).join("<br>"):"—"}</td></tr>`;return}
-   if(f.type==="derived"){const ps=parties().filter(f.filter);rows+=`<tr><th>${esc(f.label)}</th><td>${ps.map(p=>esc(p.name+": "+f.cols.map(c=>c.label+" "+v(((S[f.id]||{})[p._id]||{})[c.k])).join(", "))).join("<br>")||"—"}</td></tr>`;return}
+   if(f.type==="derived"){const ps=parties().filter(f.filter);rows+=`<tr><th>${esc(f.label)}</th><td>${ps.map(p=>esc(p.name+": "+f.cols.map(c=>c.label+" "+v(c.type==="ro"?c.ro(p):((S[f.id]||{})[p._id]||{})[c.k])).join(", "))).join("<br>")||"—"}</td></tr>`;return}
    const val=f.type==="ro"?f.ro(S):f.type==="phone"?[S[f.id+"_cc"],S[f.id]].filter(Boolean).join(" "):S[f.id];
    rows+=`<tr><th>${esc(f.label)}</th><td>${esc(v(val))}</td></tr>`;
   });
@@ -1179,12 +1263,13 @@ const parties=()=>(S.partyList||[]).filter(p=>p.name);
 const cur$=()=>STEPS[cur.st].sections[cur.se];
 const tip=t=>t?` <span class="tip" tabindex="0" data-tip="${esc(t)}" aria-label="${esc(t)}">?</span>`:"";
 const optsOf=f=>typeof f.opts==="function"?f.opts(S):f.opts;
+const isReq=f=>!!(f.req||(f.reqIf&&f.reqIf(S)));
 
 /* Completion of a section: count required, visible values */
 // Field rules: required, conditionally required (reqIf), format checks (valid), and email format.
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function fieldInvalid(f){const v=S[f.id];if(isEmpty(v))return "";if(f.valid)return f.valid(v,S);if(f.type==="email"&&!EMAIL.test(v))return "Enter a valid email address.";return ""}
-function cellOk(c,r){const v=r[c.k];if(c.en&&!c.en(r))return true;if((c.req||(c.reqIf&&c.reqIf(r)))&&isEmpty(v))return false;return !(c.valid&&!isEmpty(v)&&c.valid(v))}
+function cellOk(c,r){if(c.type==="ro")return true;const v=r[c.k];if(c.en&&!c.en(r))return true;if((c.req||(c.reqIf&&c.reqIf(r)))&&isEmpty(v))return false;return !(c.valid&&!isEmpty(v)&&c.valid(v))}
 function status(sec){
  if(sec.custom==="docs"){const d=docList().filter(x=>x.need);const done=d.filter(x=>x.s==="up").length;return {req:d.length,done,miss:d.filter(x=>x.s!=="up").map(x=>x.name)}}
  if(sec.custom==="review")return {req:0,done:0,miss:[]};
@@ -1205,7 +1290,7 @@ function status(sec){
   if(!f.id||f.type==="ro")continue;
   const bad=!isEmpty(S[f.id])&&fieldInvalid(f);
   if(bad){req++;miss.push(f.label+" (invalid)");continue}
-  if(!f.req)continue;
+  if(!isReq(f))continue;
   req++;if(!isEmpty(S[f.id]))done++;else miss.push(f.label);
  }
  return {req,done,miss};
@@ -1241,8 +1326,8 @@ function ctl(f){
  switch(f.type){
   case "select":case "country":{const o=f.type==="country"?CN:optsOf(f);return `<select class="sel" id="i-${f.id}" data-k="${f.id}"><option value="">Select…</option>${o.map(x=>`<option${x===v?" selected":""}>${esc(x)}</option>`).join("")}</select>`}
   case "radio":
-   if(f.stack)return `<div class="stack" role="radiogroup" aria-label="${esc(f.label)}">${f.opts.map((o,i)=>`<label class="choice"><input type="radio" name="${f.id}" id="i-${f.id}-${i}" data-k="${f.id}" value="${esc(o)}"${o===v?" checked":""}><span>${esc(o)}</span></label>`).join("")}</div>`;
-   return seg(f,f.opts);
+   if(f.stack)return `<div class="stack" role="radiogroup" aria-label="${esc(f.label)}">${optsOf(f).map((o,i)=>`<label class="choice"><input type="radio" name="${f.id}" id="i-${f.id}-${i}" data-k="${f.id}" value="${esc(o)}"${o===v?" checked":""}><span>${esc(o)}</span></label>`).join("")}</div>`;
+   return seg(f,optsOf(f));
   case "textarea":return `<textarea class="in" id="i-${f.id}" data-k="${f.id}">${esc(v)}</textarea>`;
   case "phone":return `<div class="phone"><select class="sel" id="i-${f.id}-cc" data-k="${f.id}_cc" aria-label="Country code"><option value="">Code</option>${[...new Set(COUNTRIES.map(c=>c[1]))].map(c=>`<option${c===S[f.id+"_cc"]?" selected":""}>${c}</option>`).join("")}</select><input class="in mono" id="i-${f.id}" data-k="${f.id}" inputmode="tel" value="${esc(v)}" aria-label="${esc(f.label)}"></div>`;
   case "checks":return `<div class="checks">${f.opts.map((o,i)=>`<label class="ck"><input type="checkbox" id="i-${f.id}-${i}" data-k="${f.id}" data-multi="${esc(o)}"${(v||[]).includes(o)?" checked":""}>${esc(o)}</label>`).join("")}</div>`;
@@ -1259,15 +1344,17 @@ function field(f,sid){
  if(f.type==="table")return tableHTML(f,sid);
  if(f.type==="derived")return derivedHTML(f,sid);
  const inv=fieldInvalid(f);
- const err=(showErr[sid]&&f.req&&isEmpty(S[f.id]))||!!inv;
+ const err=(showErr[sid]&&isReq(f)&&isEmpty(S[f.id]))||!!inv;
  if(f.type==="yn"||f.type==="ynna")
-  return `<div class="q full${err?" err":""}" id="f-${f.id}"><div class="qt">${esc(f.label)}${f.req?' <span class="req">*</span>':""}${tip(f.help)}</div>${seg(f,f.type==="yn"?YN:YNNA)}</div>`;
+  return `<div class="q full${err?" err":""}" id="f-${f.id}"><div class="qt">${esc(f.label)}${isReq(f)?' <span class="req">*</span>':""}${tip(f.help)}</div>${seg(f,f.type==="yn"?YN:YNNA)}</div>`;
  if(f.type==="check")
-  return `<div class="fld full${err?" err":""}" id="f-${f.id}"><label class="ck"><input type="checkbox" id="i-${f.id}" data-k="${f.id}"${S[f.id]?" checked":""}> ${esc(f.label)}${f.req?' <span class="req">*</span>':""}</label>${err?'<div class="msg">Please confirm to continue</div>':""}</div>`;
+  return `<div class="fld full${err?" err":""}" id="f-${f.id}"><label class="ck"><input type="checkbox" id="i-${f.id}" data-k="${f.id}"${S[f.id]?" checked":""}> ${esc(f.label)}${isReq(f)?' <span class="req">*</span>':""}</label>${err?'<div class="msg">Please confirm to continue</div>':""}</div>`;
+ if(f.type==="consent")
+  return `<div class="fld full${err?" err":""}" id="f-${f.id}"><span class="lbl">${esc(f.label)}<span class="req">*</span></span><div class="dact" style="justify-content:flex-start">${S[f.id]?'<span class="st up">Accepted</span>':""}<button class="btn sec sm" data-consent="${f.id}">${S[f.id]?"View declaration":"Read and accept"}</button></div>${err?'<div class="msg">Read the declaration and accept it to continue</div>':""}</div>`;
  const span=f.span==="full"?" full":f.span===2?" s2":"";
  const lab=f.type==="radio"||f.type==="checks"?`<span class="lbl">`:`<label for="i-${f.id}${f.type==="phone"?"":""}">`;
  const labEnd=f.type==="radio"||f.type==="checks"?`</span>`:`</label>`;
- return `<div class="fld${span}${err?" err":""}" id="f-${f.id}">${lab}${esc(f.label)}${f.req?'<span class="req">*</span>':f.opt?'<span class="opt">(optional)</span>':""}${tip(f.help)}${labEnd}${ctl(f)}${err?`<div class="msg">${esc(inv||"This field is required")}</div>`:""}</div>`;
+ return `<div class="fld${span}${err?" err":""}" id="f-${f.id}">${lab}${esc(f.label)}${isReq(f)?'<span class="req">*</span>':f.opt?'<span class="opt">(optional)</span>':""}${tip(f.help)}${labEnd}${ctl(f)}${err?`<div class="msg">${esc(inv||"This field is required")}</div>`:""}</div>`;
 }
 function cell(c,val,attrs,err,row){
  row=row||{};const off=c.en&&!c.en(row);
@@ -1285,14 +1372,14 @@ function tableHTML(f,sid){
  const missing=err&&rows.length<(f.min||0);
  return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th class="n">#</th>${f.cols.map(th).join("")}<th></th></tr></thead><tbody>
  ${rows.length?rows.map((r,i)=>`<tr><td class="n">${i+1}</td>${f.cols.map(c=>cell(c,r[c.k],`data-t="${f.id}" data-r="${i}" data-c="${c.k}"`,err,r)).join("")}<td class="c"><button class="icon-btn" data-act="del" data-t="${f.id}" data-r="${i}" aria-label="Remove row ${i+1}">${trash}</button></td></tr>`).join(""):`<tr><td colspan="${f.cols.length+2}" class="empty">No rows yet.</td></tr>`}
- </tbody></table></div><div class="tbl-foot"><button class="btn sec sm" data-act="add" data-t="${f.id}">+ ${esc(f.add||"Add row")}</button>${missing?'<span class="msg">Add at least one row</span>':""}</div></div>`;
+ </tbody></table></div><div class="tbl-foot"><button class="btn sec sm" data-act="add" data-t="${f.id}"${f.max&&rows.length>=f.max?" disabled":""}>+ ${esc(f.add||"Add row")}</button>${f.max?`<span class="hint">Up to ${f.max} rows</span>`:""}${missing?'<span class="msg">Add at least one row</span>':""}</div></div>`;
 }
 function derivedHTML(f,sid){
  const ps=parties().filter(f.filter),store=S[f.id]||(S[f.id]={});const err=showErr[sid];
  let foot="";
  if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);foot=`<span class="total${t>100?" bad":""}" id="tot-${f.id}">Total stake: ${t}%${t>100?" · exceeds 100%":""}</span>`}
  return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th style="min-width:170px">Name</th>${f.cols.map(th).join("")}</tr></thead><tbody>
- ${ps.length?ps.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="hint">${esc(p.desig||p.type||"")}${[p.dir&&"Director",p.ubo&&"UBO",p.smo&&"SMO",p.sig&&"Signatory"].filter(Boolean).map(x=>" · "+x).join("")}</div></td>${f.cols.map(c=>cell(c,(store[p._id]||{})[c.k],`data-d="${f.id}" data-p="${p._id}" data-c="${c.k}"`,err,store[p._id]||{})).join("")}</tr>`).join(""):`<tr><td colspan="${f.cols.length+1}" class="empty">${esc(f.empty)} <button class="btn ghost sm" data-go="1:0">Go to related parties</button></td></tr>`}
+ ${ps.length?ps.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="hint">${esc(p.desig||p.type||"")}${[p.dir&&"Director",p.ubo&&"UBO",p.smo&&"SMO",p.sig&&"Signatory"].filter(Boolean).map(x=>" · "+x).join("")}</div></td>${f.cols.map(c=>c.type==="ro"?`<td>${esc(c.ro(p)||"—")}</td>`:cell(c,(store[p._id]||{})[c.k],`data-d="${f.id}" data-p="${p._id}" data-c="${c.k}"`,err,store[p._id]||{})).join("")}</tr>`).join(""):`<tr><td colspan="${f.cols.length+1}" class="empty">${esc(f.empty)} <button class="btn ghost sm" data-go="1:0">Go to related parties</button></td></tr>`}
  </tbody></table></div>${foot?`<div class="tbl-foot">${foot}<span class="hint">Edit names and roles in Related parties.</span></div>`:""}</div>`;
 }
 const trash=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>`;
@@ -1330,6 +1417,18 @@ function refreshLight(){ // after typing: update counters without re-rendering i
  const st=status(cur$());const h=$("#leftHint");if(h)h.textContent=st.miss.length?st.miss.length+" required left in this section":"Section complete";
  const m=document.querySelector(".sec-meta b");if(m)m.textContent=Math.min(st.done,st.req)+"/"+st.req;
  document.querySelectorAll(".total").forEach(el=>{const f=cur$().fields.find(x=>"tot-"+x.id===el.id);if(!f)return;const t=parties().filter(f.filter).reduce((a,p)=>a+(parseFloat(((S[f.id]||{})[p._id]||{})[f.total])||0),0);el.textContent=`Total stake: ${t}%${t>100?" · exceeds 100%":""}`;el.classList.toggle("bad",t>100)});
+}
+
+/* FATCA Section B: the declaration opens in a pop-up and can be accepted only after scrolling to the end */
+function openConsent(id){
+ let d=$("#consentDlg");if(!d){d=document.createElement("dialog");d.id="consentDlg";d.className="modal";document.body.appendChild(d)}
+ const edit=canEdit()&&!S[id];
+ d.innerHTML=`<div class="mhead"><div><h2>FATCA / CRS declaration</h2><p class="hint">${edit?"Scroll to the end to accept.":"Accepted declaration."}</p></div><button class="icon-btn" data-cx="close" aria-label="Close">✕</button></div>
+ <div id="cbox" style="padding:18px 20px;overflow:auto;max-height:240px">${FATCA_DECL.map(t=>`<p style="margin:0 0 12px">${esc(t)}</p>`).join("")}</div>
+ <div class="mfoot"><button class="btn ghost" data-cx="close">Close</button>${edit?`<button class="btn pri" data-cx="ok" disabled>I accept</button>`:""}</div>`;
+ d.showModal();
+ const box=$("#cbox"),chk=()=>{if(box.scrollTop+box.clientHeight>=box.scrollHeight-4){const b=d.querySelector("[data-cx=ok]");if(b)b.disabled=false}};box.onscroll=chk;chk();
+ d.onclick=e=>{const c=e.target.closest("[data-cx]");if(!c)return;if(c.dataset.cx==="ok"){S[id]=true;save();renderMain(true);toast("Declaration accepted")}d.close()};
 }
 
 /* ---------- Related party KYC ---------- */
@@ -1440,10 +1539,12 @@ function setFrom(el){
  if(el.dataset.t){const row=S[el.dataset.t][+el.dataset.r];row[el.dataset.c]=el.type==="checkbox"?el.checked:el.value;return}
  if(el.dataset.d){const st=S[el.dataset.d]||(S[el.dataset.d]={});const r=st[el.dataset.p]||(st[el.dataset.p]={});r[el.dataset.c]=el.type==="checkbox"?el.checked:el.value;return}
  const k=el.dataset.k;if(!k)return;
- if(el.dataset.multi!==undefined){const a=new Set(S[k]||[]);el.checked?a.add(el.dataset.multi):a.delete(el.dataset.multi);S[k]=[...a]}
+ if(el.dataset.multi!==undefined){const a=new Set(S[k]||[]);el.checked?a.add(el.dataset.multi):a.delete(el.dataset.multi);S[k]=[...a];
+  if(k==="mkt"&&el.checked)S[k]=MKT_ALL.includes(el.dataset.multi)?[el.dataset.multi]:S[k].filter(x=>!MKT_ALL.includes(x))}
  else if(el.type==="checkbox")S[k]=el.checked;
  else S[k]=el.value;
  if(k==="category"&&!(SUBCAT[S.category]||[]).includes(S.subcat))S.subcat="";
+ if(k==="category")S.odiHedge=S.category==="Category I"?(S.odiHedge==="Not applicable"?"":S.odiHedge):"Not applicable";
  if(k==="regType")S.panHas=S.regType===REG_TYPES[1]?"Yes":"No";
 }
 const main=$("#main");
@@ -1480,7 +1581,8 @@ document.addEventListener("click",e=>{
   }else{toast("Section saved");next()}
  }
  if(a==="back")back();
- if(a==="add"){const t=b.dataset.t;(S[t]=S[t]||[]).push({_id:nid()});renderMain(true);save();
+ if(a==="add"){const t=b.dataset.t,f=STEPS.flatMap(x=>x.sections.flatMap(y=>y.fields||[])).find(x=>x.id===t);
+  (S[t]=S[t]||[]).push({_id:nid(),...Object.fromEntries((f?f.cols:[]).filter(c=>"def" in c).map(c=>[c.k,c.def]))});renderMain(true);save();
   const rows=document.querySelectorAll(`[data-t="${t}"][data-r="${S[t].length-1}"]`);const inp=[...rows].find(x=>x.matches("input[type=text],select"));if(inp)inp.focus()}
  if(a==="del"){const t=b.dataset.t,r=+b.dataset.r;const removed=S[t].splice(r,1)[0];renderMain(true);save();
   toast("Row removed","Undo",()=>{S[t].splice(r,0,removed);renderMain(true);save()})}
@@ -1524,6 +1626,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("click",e=>{
  const o=e.target.closest("[data-open]");if(o){openApp(o.dataset.open);return}
+ const cs=e.target.closest("[data-consent]");if(cs){openConsent(cs.dataset.consent);return}
  const ky=e.target.closest("[data-kyc]");if(ky){kycOpen=kycOpen===ky.dataset.kyc?null:ky.dataset.kyc;renderMain(true);const c=$("#kycCard");if(c)c.scrollIntoView({behavior:"smooth",block:"start"});return}
  const rp=e.target.closest("[data-rep]");if(rp){rep.q="";showReport(rp.dataset.rep);return}
  const h=e.target.closest("[data-hf]");if(h){homeFilter=h.dataset.hf;renderHome();return}
