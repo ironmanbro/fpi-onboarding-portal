@@ -24,3 +24,6 @@ Answers are stored only in the viewer's browser (`localStorage`). Nothing is sen
 
 ## Run locally
 Open `index.html` in a browser, or run `python3 -m http.server` in this folder.
+
+## Current deployment
+Deployed as a Cloudflare Worker with static assets (`wrangler.jsonc`), connected to this repo. Every push to `main` runs `npx wrangler deploy`. `.assetsignore` keeps the README and config files from being served.
