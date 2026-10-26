@@ -191,7 +191,7 @@ td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
 .dgroup{margin-bottom:18px}
 .dgroup h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;gap:8px;align-items:center}
 .dgroup h3 span{font:500 12px var(--f-mono);color:var(--muted)}
-.drow{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) 110px minmax(0,410px);gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
 .drow:last-child{border-bottom:0}
 .dlist{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .dname{display:flex;flex-direction:column;min-width:0}
@@ -202,6 +202,8 @@ td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
 .st.pend{background:var(--danger-soft);color:var(--danger)}
 .st.up{background:var(--ok-soft);color:var(--ok)}
 .st.none{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.st.mrg{background:var(--accent-soft);color:var(--accent)}
+.lh{border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;background:var(--surface)}
 .dact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
 .cmt{grid-column:1/-1;display:flex;gap:8px}
 .cmt .in{flex:1}
@@ -379,6 +381,8 @@ const CONSTITUTION=["A - Sole Proprietorship","B - Partnership Firm","D - Privat
 const AO_MASTER={"DLCC035001":{area:"DLC",type:"C",range:"035",no:"001"},"DLCW116001":{area:"DLC",type:"W",range:"116",no:"001"},"MUMW227001":{area:"MUM",type:"W",range:"227",no:"001"}};
 const POI=["Certificate of incorporation / formation","Registration certificate","Trust deed","Partnership deed","Memorandum & articles"];
 const POA=["Bank account statement (≤ 3 months old)","Utility bill (≤ 3 months old)","Registered lease agreement","Regulator-issued certificate"];
+const POI_IND=["Passport","National ID card","Driving licence","Voter ID card"];
+const POA_IND=["Passport","Utility bill (≤ 3 months old)","Bank account statement (≤ 3 months old)","Driving licence"];
 const DESIG=["Director","Manager","Trustee","Partner","Authorised officer","Company secretary"];
 const CPT=["C01 · Legal person · ownership","C02 · Legal person · other means","C03 · Legal person · senior managing official","C04 · Trust · settlor","C05 · Trust · trustee","C06 · Trust · protector","C07 · Trust · beneficiary","C08 · Trust · other"];
 const OCC=["B · Business","S · Service","P · Professional","O · Others"];
@@ -389,6 +393,29 @@ const addr=(p,cls)=>[
  {id:p+"_pin",label:"PIN / ZIP / postal code",req:1},{id:p+"_city",label:"City / town",req:1},{id:p+"_state",label:"State / province"},
  {id:p+"_country",label:"Country",type:"country",req:1}].map(f=>cls?{...f,show:cls}:f);
 const yes=k=>s=>s[k]==="Yes";
+/* KYC details for each related party (BRS "KYC Details related parties"). Stored flat as kyc_<partyId>_<field> so the normal field renderer and autosave work. */
+function kycFields(p){
+ const k="kyc_"+p._id+"_",ind=p.type!=="Non-individual",cc=id=>(v,s)=>s[k+id+"_cc"]?"":"Choose the country code.";
+ return [
+  ...(ind?[{id:k+"first",label:"First name",req:1},{id:k+"middle",label:"Middle name",opt:1},{id:k+"last",label:"Last name / surname",req:1},
+   {id:k+"gender",label:"Gender",type:"select",req:1,opts:["Male","Female","Transgender"]}]:[]),
+  {id:k+"dob",label:ind?"Date of birth":"Date of incorporation",type:"date",req:1,valid:v=>new Date(v)>new Date()?"The date can't be in the future.":""},
+  {id:k+"cob",label:ind?"Country of birth":"Country of incorporation",type:"country",req:1},
+  {id:k+"nat",label:"Nationality",type:"country",req:1},
+  {id:k+"taxRes",label:"Country of tax residency",type:"country",req:1},
+  {id:k+"pan",label:"PAN",opt:1,ph:"AAAAA9999A",valid:v=>/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(v).toUpperCase())?"":"Enter a valid 10-character PAN: 5 letters, 4 numbers, 1 letter."},
+  {id:k+"poi",label:"Proof of identity (POI) type",type:"select",req:1,opts:ind?POI_IND:POI},
+  {id:k+"poiNo",label:"POI number",req:1,valid:v=>/^[A-Za-z0-9 /-]{1,30}$/.test(v)?"":"Use letters and numbers only, up to 30 characters."},
+  {id:k+"poa",label:"Proof of address (POA) type",type:"select",req:1,opts:ind?POA_IND:POA},
+  {type:"h",label:ind?"Residential address":"Registered address"},...addr(k+"ra"),
+  {id:k+"corrSame",label:"Correspondence address is the same",type:"check"},
+  {type:"h",label:"Correspondence address",show:s=>!s[k+"corrSame"]},...addr(k+"ca",s=>!s[k+"corrSame"]),
+  {type:"h",label:"Contact details"},
+  {id:k+"email",label:"Email address",type:"email",req:1},
+  {id:k+"mob",label:"Mobile number",type:"phone",req:1,valid:(v,s)=>/^[0-9 ]{4,15}$/.test(v)?cc("mob")(v,s):"Use numbers only, up to 15 digits."},
+  {id:k+"telOff",label:"Telephone (office)",type:"phone",opt:1,valid:v=>/^[0-9 ]{4,15}$/.test(v)?"":"Use numbers only, up to 15 digits."},
+  {id:k+"telRes",label:"Telephone (residence)",type:"phone",opt:1,valid:v=>/^[0-9 ]{4,15}$/.test(v)?"":"Use numbers only, up to 15 digits."}];
+}
 
 const STEPS=[
 {id:"inv",title:"Investor details",sections:[
@@ -484,6 +511,8 @@ const STEPS=[
    {k:"dir",label:"Director",type:"cb"},
    {k:"sig",label:"Authorised signatory",type:"cb"},{k:"ops",label:"Operations",type:"cb"},{k:"acct",label:"Account opening",type:"cb"},
    {k:"ubo",label:"UBO",type:"cb"},{k:"smo",label:"SMO",type:"cb",help:"Senior managing official. Required when no natural person qualifies as UBO."}]}]},
+ {id:"pkyc",title:"Related party KYC",desc:"KYC details for each related party: authorised signatories, directors, UBOs and SMOs. Open a person to complete their details.",custom:"pkyc",
+  get fields(){return parties().flatMap(p=>kycFields(p).map(f=>f.type==="h"?f:{...f,label:p.name+" · "+f.label}))}},
  {id:"sigs",title:"Authorised signatories",desc:"Set how accounts are operated, then the rights of each signatory. Only parties marked as authorised signatory appear here.",fields:[
   {id:"modeAcct",label:"Mode of operation · account opening",type:"radio",req:1,opts:["Severally","Jointly"]},
   {id:"modeWeb",label:"Mode of operation · web custody",type:"radio",req:1,opts:["Severally","Jointly"]},
@@ -727,8 +756,16 @@ function sample(){
   structDecl:"Seeking registration as an FPI with no underlying fund registered as FPI; BO/SMO details are given in the CAF annexure.",
   f1:"No",f2:"No",f3:"No",f4:"Yes",giin:"A1B2C3.99999.SL.702",f5:"Yes",f6:"No",fConsent:true,
   crsCust:"",crsIdType:"TIN",crsIdNo:"T14FC0987K",crsIdC:"Singapore",crsRes:"Singapore",crsCat:"Financial entity",crsUsFi:"No",crsCls:"Non-reporting FI",crsGiinOpt:"GIIN",crsGiin:"A1B2C3.99999.SL.702",crsDecl:true,
+  ...pkycSample(),
   docs:Object.fromEntries([...DOCS.map(d=>d[0]),"rp-p1-0","rp-p1-1","rp-p2-0","rp-p3-0","rp-p3-1","rp-p4-0","rp-p4-1"].map(id=>[id,{s:"up",file:"sample-"+id+".pdf",demo:true}]))
  };
+}
+function pkycSample(){
+ const kyc=(id,o)=>Object.fromEntries(Object.entries({cob:"Singapore",nat:"Singapore",taxRes:"Singapore",ra_l1:"8 Marina View",ra_l2:"#21-04 Asia Square Tower 1",ra_pin:"018960",ra_city:"Singapore",ra_country:"Singapore",corrSame:true,mob_cc:"+65",...o}).map(([k,v])=>["kyc_"+id+"_"+k,v]));
+ return {...kyc("p1",{first:"Ananya",last:"Rao",gender:"Female",dob:"1978-05-14",cob:"India",nat:"India",poi:"Passport",poiNo:"Z4821733",poa:POA_IND[1],email:"ananya.rao@asterridge.example",mob:"9123 4567"}),
+  ...kyc("p2",{dob:"2011-08-02",poi:POI[0],poiNo:"201811223M",poa:POA[3],email:"admin@kestrel.example",mob:"6234 1100"}),
+  ...kyc("p3",{first:"Daniel",last:"Okafor",gender:"Male",dob:"1981-11-03",cob:"United Kingdom",nat:"United Kingdom",poi:"Passport",poiNo:"533912870",poa:POA_IND[2],email:"daniel.okafor@asterridge.example",mob:"9234 5678"}),
+  ...kyc("p4",{first:"Mei Lin",last:"Tan",gender:"Female",dob:"1986-02-21",poi:"National ID card",poiNo:"S8623456G",poa:POA_IND[1],email:"meilin.tan@asterridge.example",mob:"9345 6789"})};
 }
 const newId=()=>"FPI-"+new Date().toISOString().slice(2,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*9000)+1000);
 function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},partyList:[],docs:{},offSame:false}}
@@ -814,7 +851,7 @@ async function showRegistrations(){
 function renderRegistrations(){
  const tabs=[["Pending","Authorise / reject"],["Authorised","Authorised"],["Rejected","Rejected"],["Lead","Leads (not submitted)"]];
  const list=regs.filter(r=>r.status===regTab);
- $("#main").innerHTML=`<div class="sec-head"><div><h1>Investor registrations</h1><p>Review registration requests from the external portal. Leads are people who started registering but have not submitted yet.</p></div></div>
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>Investor registrations</h1><p>Review registration requests from the external portal. Leads are people who started registering but have not submitted yet.</p></div><div class="dact">${repBtns()}</div></div>
  <div class="chipset" style="margin-bottom:14px">${tabs.map(([k,l])=>`<button class="chip${k===regTab?" on":""}" data-regtab="${k}">${l} · ${regs.filter(r=>r.status===k).length}</button>`).join("")}</div>
  ${homeErr?`<div class="note" style="color:var(--danger)">${esc(homeErr)}</div>`:list.length?`<div class="tbl-wrap"><table><thead><tr><th>Reference</th><th>User type</th><th>Name</th><th>Country</th><th>Phone</th><th>Email</th><th>${regTab==="Pending"?"Action":regTab==="Rejected"?"Reason":"Updated"}</th></tr></thead><tbody>
  ${list.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.user_type||"—")}</td><td>${esc(r.name||"—")}</td><td>${esc(r.country||"—")}</td><td class="mono">${esc(r.phone||"—")}</td><td>${esc(r.email||"—")}</td>
@@ -900,7 +937,7 @@ function renderHome(){
  const canCancel=a=>owner&&!["Completed","Rejected","Cancelled","NSDL submitted","Registered","Accounts opened"].includes(a.status);
  const intro={investor:"A list of the applications under your purview.",rm:"All investor applications, including ones you started on an investor's behalf.",reviewer:"Applications submitted by investors and RMs, waiting for business review.",maker:"Applications approved by the Business Reviewer, waiting for maker checks.",checker:"Applications forwarded by the Ops Maker, and post-approval steps."}[r];
  $("#main").innerHTML=`<div class="sec-head"><div><h1>${ROLE[r].home}</h1><p>${intro}</p></div>
- ${owner?`<div class="dact"><button class="btn pri" data-act="newApp">+ New application</button></div>`:""}</div>
+ <div class="dact">${repBtns()}${owner?`<button class="btn pri" data-act="newApp">+ New application</button>`:""}</div></div>
  <div class="doc-tools"><input class="in" id="homeQ" placeholder="Search by ID, investor, country or status" value="${esc(homeQ)}" aria-label="Search applications">
  <div class="chipset">${fs.map(([k,l,s])=>`<button class="chip${k===homeFilter?" on":""}" data-hf="${k}">${l} · ${s?apps.filter(a=>s.includes(a.status)).length:apps.length}</button>`).join("")}</div>
  <span class="sp" style="flex:1"></span><button class="btn sec sm" data-act="export" title="Download the table as a spreadsheet">Export</button></div>
@@ -919,11 +956,43 @@ function renderHome(){
  <div class="banner" style="margin-top:16px"><b>Demo environment.</b> Use made-up data only. Integrations return simulated responses.</div>`;
 }
 function exportApps(){
- const L=homeRows(),cols=[["Application ID",a=>a.id],["Investor name",a=>a.name],["Start date",a=>a.start_date],["Product type",productOf],["Country",a=>a.country],["Investor type",a=>a.inv_type],["Status",a=>a.status],["Initiated by",a=>a.init_by||"Investor"],["Pending with",a=>PENDING_WITH[a.status]],["Registration no.",a=>a.reg_no]];
+ const cols=[["Application ID",a=>a.id],["Investor name",a=>a.name],["Start date",a=>a.start_date],["Product type",productOf],["Country",a=>a.country],["Investor type",a=>a.inv_type],["Status",a=>a.status],["Initiated by",a=>a.init_by||"Investor"],["Pending with",a=>PENDING_WITH[a.status]],["Registration no.",a=>a.reg_no]];
+ downloadCSV("applications",cols,homeRows());toast("Application data exported successfully.");
+}
+function downloadCSV(name,cols,L){
  const q=v=>{v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
  const csv="﻿"+[cols.map(c=>c[0]).join(","),...L.map(a=>cols.map(c=>q(c[1](a))).join(","))].join("\r\n");
- const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const el=document.createElement("a");el.href=u;el.download=`applications-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
- toast("Application data exported successfully.");
+ const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const el=document.createElement("a");el.href=u;el.download=`${name}-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+
+/* ---------- Reports (BRS section 3) ---------- */
+const roleT=r=>ROLE[r]?ROLE[r].title:r||"";
+const REPORTS={
+ admin:{title:"Admin activity report",roles:["reviewer","bizchecker"],desc:"Actions by internal users: reviews, checks, approvals and registration decisions.",
+  cols:[["Date & time",r=>r.at&&stamp(r.at)],["User",r=>r.by_user],["Role",r=>roleT(r.role)],["Activity",r=>r.what],["Reference",r=>r.ref],["Details",r=>r.note]]},
+ audit:{title:"Application audit trail",roles:["rm"],desc:"Every recorded event on every application, newest first.",
+  cols:[["Date & time",r=>r.at&&stamp(r.at)],["Application ID",r=>r.app_id],["Investor",r=>r.name||r.owner],["Event",r=>r.what],["By",r=>r.by_user],["Role",r=>roleT(r.role)],["Details",r=>r.note]]},
+ clients:{title:"Client master details",roles:["maker","checker"],desc:"Registered clients with their FPI registration, PAN and account numbers.",
+  cols:[["Application ID",r=>r.id],["Client name",r=>r.name||r.owner],["Status",r=>r.status],["FPI registration no.",r=>r.reg_no],["PAN",r=>r.pan],["Country",r=>r.country],["Category",r=>r.category],["Sub-category",r=>r.subcat],["Investor type",r=>r.inv_type],["LEI",r=>r.lei],["Email",r=>r.email],["NSDL reference",r=>r.nsdl_ref],
+   ["Accounts",r=>{try{return JSON.parse(r.accounts||"[]").map(a=>a.name+" "+a.ref).join("; ")}catch(e){return ""}}],["Last updated",r=>fmtDate(String(r.updated_at||"").slice(0,10))]]}};
+const repBtns=()=>Object.entries(REPORTS).filter(([,x])=>x.roles.includes(ME.role)).map(([k,x])=>`<button class="btn sec" data-rep="${k}">${x.title}</button>`).join("");
+let rep={k:null,rows:[],from:"",to:"",q:"",err:""};
+async function showReport(k){
+ if(S)await flush();S=null;document.body.classList.add("home");setSaved("");rep.k=k;rep.err="";
+ $("#main").innerHTML=`<div class="empty">Loading report…</div>`;
+ const p=new URLSearchParams({role:ME.role});if(rep.from)p.set("from",rep.from);if(rep.to)p.set("to",rep.to);
+ try{rep.rows=(await call(`/api/reports/${k}?${p}`)).rows}catch(e){rep.rows=[];rep.err=e.message}
+ renderReport();
+}
+function repRows(){const q=rep.q.toLowerCase(),c=REPORTS[rep.k].cols;return q?rep.rows.filter(r=>c.some(([,f])=>String(f(r)??"").toLowerCase().includes(q))):rep.rows}
+function renderReport(){
+ const R=REPORTS[rep.k],L=repRows();
+ $("#main").innerHTML=`<div class="crumb"><button class="linkbtn" data-act="home">← ${ROLE[ME.role].home}</button></div><div class="sec-head"><div><h1>${R.title}</h1><p>${R.desc}</p></div></div>
+ <div class="doc-tools"><input class="in" id="repQ" placeholder="Search this report" value="${esc(rep.q)}" aria-label="Search report">
+ <label class="hint">From <input class="in" type="date" id="repFrom" value="${esc(rep.from)}"></label><label class="hint">To <input class="in" type="date" id="repTo" value="${esc(rep.to)}"></label>
+ <span class="sp" style="flex:1"></span><span class="hint">${L.length} row${L.length===1?"":"s"}</span><button class="btn sec sm" data-act="repExport"${L.length?"":" disabled"}>Export</button></div>
+ ${rep.err?`<div class="note" style="color:var(--danger)">${esc(rep.err)}</div>`:!L.length?`<div class="card empty">No records for these filters.</div>`:
+ `<div class="tbl-wrap"><table><thead><tr>${R.cols.map(c=>`<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${L.map(r=>`<tr>${R.cols.map(([,f])=>`<td>${esc(f(r)??"")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`}`;
 }
 async function cancelApp(id){
  const reason=($("#cancel-reason")||{}).value||"";
@@ -983,7 +1052,7 @@ async function openApp(id,push){
   const p=S._pos;cur=p&&STEPS[p.st]&&STEPS[p.st].sections[p.se]?p:{st:0,se:0};
   if(!OWNER_ROLES.includes(ME.role))cur={st:0,se:0};
   for(const k in showErr)delete showErr[k];
-  wfOpen=null;wfForm=null;openRej=null;checkNote={};
+  wfOpen=null;wfForm=null;openRej=null;checkNote={};kycOpen=null;openDsc=null;
   document.body.classList.remove("home");renderWho();setSaved(canEdit()?"Saved to cloud":"View only");
   if(push!==false)history.pushState({},"","?app="+encodeURIComponent(id));
   renderMain();window.scrollTo(0,0);
@@ -1073,13 +1142,13 @@ async function uploadDoc(docId,file,extraName){
  try{await flush();
   await api(`/${encodeURIComponent(S._id)}/files/${docId}`,{method:"PUT",body:file,headers:{"content-type":file.type||"application/octet-stream","x-file-name":encodeURIComponent(file.name)}});
   if(extraName){S.extraDocs=S.extraDocs||[];S.extraDocs.push({id:docId,name:extraName})}
-  S.docs[docId]={...(S.docs[docId]||{}),s:"up",file:file.name,demo:false};if(S._wf&&S._wf.docReview)delete S._wf.docReview[docId];renderMain(true);save();toast("Uploaded "+file.name);
+  if(docId==="letterhead")S.letterhead={file:file.name,type:file.type};else S.docs[docId]={...(S.docs[docId]||{}),s:"up",file:file.name,demo:false};if(S._wf&&S._wf.docReview)delete S._wf.docReview[docId];renderMain(true);save();toast("Uploaded "+file.name);
  }catch(e){toast("Upload failed: "+e.message)}
 }
 const fileUrl=id=>`/api/apps/${encodeURIComponent(S._id)}/files/${id}`;
 
 /* A printable summary of the application, used for the generated forms */
-function openSummary(title){
+function openSummary(title,_w,lh){
  const v=x=>Array.isArray(x)?x.join(", "):x===true?"Yes":x===false||x==null||x===""?"—":String(x);
  let h="";
  STEPS.slice(0,-2).forEach(s=>s.sections.forEach(sec=>{
@@ -1096,7 +1165,7 @@ function openSummary(title){
  const w=window.open("","_blank");
  if(!w){toast("Allow pop-ups for this site to open the form.");return}
  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)} · ${esc(S._id)}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#13201D}h1{font-size:22px;margin:0}h2{font-size:14px;margin:28px 0 8px;color:#AE282E;text-transform:uppercase;letter-spacing:.05em}table{border-collapse:collapse;width:100%}th,td{border:1px solid #DCE3E0;padding:6px 10px;text-align:left;vertical-align:top}th{width:42%;font-weight:600;background:#F7F9F8}.meta{color:#5A6B66}.sig{margin-top:48px;display:flex;gap:48px}.sig div{flex:1;border-top:1px solid #13201D;padding-top:6px}@media print{body{margin:0}}</style>
- <h1>${esc(title)}</h1><p class="meta">Application ${esc(S._id)} · ${esc(S.invName||"")} · Generated ${new Date().toLocaleString("en-GB")}</p>${h}
+ ${lh&&S.letterhead?(/^image\//.test(S.letterhead.type)?`<img src="${location.origin+fileUrl("letterhead")}" alt="Letterhead" style="max-width:100%;max-height:140px;margin-bottom:16px">`:`<p class="meta">Merged on letterhead: ${esc(S.letterhead.file)}</p>`):""}<h1>${esc(title)}</h1><p class="meta">Application ${esc(S._id)} · ${esc(S.invName||"")} · Generated ${new Date().toLocaleString("en-GB")}</p>${h}
  <div class="sig"><div>Authorised signatory</div><div>Date and place</div></div>`);
  w.document.close();
 }
@@ -1235,6 +1304,7 @@ function renderMain(keepScroll){
  let body="";
  if(sec.custom==="docs")body=docsHTML();
  else if(sec.custom==="review")body=reviewHTML();
+ else if(sec.custom==="pkyc")body=pkycHTML();
  else{
   let fs=sec.fields,tabs="";
   if(sec.tabs){const ti=S._tab[sec.id]||0;
@@ -1262,17 +1332,40 @@ function refreshLight(){ // after typing: update counters without re-rendering i
  document.querySelectorAll(".total").forEach(el=>{const f=cur$().fields.find(x=>"tot-"+x.id===el.id);if(!f)return;const t=parties().filter(f.filter).reduce((a,p)=>a+(parseFloat(((S[f.id]||{})[p._id]||{})[f.total])||0),0);el.textContent=`Total stake: ${t}%${t>100?" · exceeds 100%":""}`;el.classList.toggle("bad",t>100)});
 }
 
+/* ---------- Related party KYC ---------- */
+let kycOpen=null;
+const roleNames=p=>[p.sig&&"Authorised signatory",p.dir&&"Director",p.ubo&&"UBO",p.smo&&"SMO",p.ops&&"Operations",p.acct&&"Account opening"].filter(Boolean).join(", ")||"—";
+function pkycHTML(){
+ const ps=parties(),edit=canEdit(),p=ps.find(x=>x._id===kycOpen);
+ if(!ps.length)return `<div class="card empty">No related parties yet. <button class="btn ghost sm" data-go="1:0">Go to related parties</button></div>`;
+ const rows=ps.map(x=>{const t=status({fields:kycFields(x)}),ok=!t.miss.length;
+  return `<tr><td><b>${esc(x.name)}</b><div class="hint">${esc(x.type||"")}</div></td><td>${esc(roleNames(x))}</td><td><span class="st ${ok?"up":"pend"}">${ok?"Completed":"Pending"}</span>${ok?"":`<div class="hint">${t.miss.length} required left</div>`}</td>
+  <td><button class="btn ${x._id===kycOpen?"pri":"sec"} sm" data-kyc="${x._id}">${!edit?"View":ok?"Edit":"Complete KYC"}</button></td></tr>`}).join("");
+ return `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Roles</th><th>KYC status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>
+ ${p?`<div class="card" style="margin-top:16px" id="kycCard"><h3 class="sub">KYC details · ${esc(p.name)}</h3><div class="grid">${kycFields(p).map(f=>field(f,"pkyc")).join("")}</div>
+ <div class="dact" style="margin-top:12px"><button class="btn ghost sm" data-act="kycClose">Close</button>${edit?`<button class="btn pri sm" data-act="kycSave">Save KYC details</button>`:""}</div></div>`:""}`;
+}
+
 /* ---------- Documents ---------- */
-let docFilter="all",docQ="";
+let docFilter="all",docQ="",openDsc=null;
+// Forms printed on the investor's letterhead (merge is optional). The BRS points to a separate document sheet; this list is the demo's assumption.
+const LH=new Set(["bankDecl","benTc","boardRes","borrow","emailAuth","finDecl","granular","listSig","listDir","otherDecl","uboDecl"]);
 function docList(){
  const d=S.docs||(S.docs={});const out=[];
- DOCS.forEach(([id,name,kind,need])=>{if(need&&!need(S))return;const r=d[id]||{};out.push({id,name,kind,group:kind==="form"?"Forms generated from your answers":"Supporting documents",s:r.s||(kind==="form"?"none":"pend"),file:r.file,c:r.c,demo:r.demo,need:true})});
- parties().filter(p=>p.sig||p.ubo||p.smo).forEach(p=>{["Proof of identity","Proof of address"].forEach((n,i)=>{if(p.type==="Non-individual"&&i===1)return;const id=`rp-${p._id}-${i}`;const r=d[id]||{};
-  out.push({id,name:`${n} · ${p.name}`,kind:"upload",group:"Related party documents",s:r.s||"pend",file:r.file,c:r.c,demo:r.demo,need:true})})});
- (S.extraDocs||[]).forEach(x=>{const r=d[x.id]||{};out.push({id:x.id,name:x.name,kind:"upload",group:"Additional documents",s:r.s||"up",file:r.file,c:r.c,need:false})});
+ DOCS.forEach(([id,name,kind,need])=>{if(need&&!need(S))return;const r=d[id]||{};out.push({id,name,kind,lh:LH.has(id),group:kind==="form"?"Forms generated from your answers":"Supporting documents",s:r.s||(kind==="form"?"none":"pend"),file:r.file,c:r.c,demo:r.demo,need:true})});
+ parties().filter(p=>p.sig||p.ubo||p.smo).forEach(p=>{["Proof of identity","Proof of address"].forEach((n,i)=>{if(p.type==="Non-individual"&&i===1)return;const id=`rp-${p._id}-${i}`;const r=d[id]||{},k="kyc_"+p._id+"_";
+  out.push({id,name:`${n} · ${p.name}`,meta:i?S[k+"poa"]:[S[k+"poi"],S[k+"poiNo"]].filter(Boolean).join(" · "),kind:"upload",group:"Related party documents",s:r.s||"pend",file:r.file,c:r.c,demo:r.demo,need:true})})});
+ (S.extraDocs||[]).forEach(x=>{const r=d[x.id]||{};out.push({id:x.id,name:x.name,kind:"upload",lh:true,group:"Additional documents",s:r.s||"up",file:r.file,c:r.c,need:false})});
  return out;
 }
-const SLBL={none:["Not generated","none"],gen:["Ready to sign","gen"],pend:["Upload needed","pend"],up:["Uploaded","up"]};
+// BRS document statuses. While filling: Pending → Generated → Merged (on letterhead) → Uploaded. After submission: Reviewed → Completed.
+const SLBL={none:["Pending","none"],gen:["Generated","gen"],merged:["Merged","mrg"],pend:["Pending","pend"],up:["Uploaded","up"]};
+function docState(x){
+ const rv=((S._wf||{}).docReview||{})[x.id];
+ if(rv&&rv.s==="rejected")return ["Rejected","rej"];
+ if(!EDITABLE.includes(S._status)&&x.file)return (rv&&rv.s==="verified")||x.kind!=="form"?["Completed","ver"]:["Reviewed","gen"];
+ return SLBL[x.s];
+}
 let openCmt=null;
 function docsHTML(){
  const all=docList();let L=all;
@@ -1280,25 +1373,30 @@ function docsHTML(){
  if(docQ)L=L.filter(x=>x.name.toLowerCase().includes(docQ.toLowerCase()));
  const notGen=all.filter(x=>x.kind==="form"&&x.s==="none").length;
  const todo=all.filter(x=>x.need&&x.s!=="up").length;
- const groups=[...new Set(all.map(x=>x.group))];
- return `<div class="drop" id="drop"><div><b>Upload signed forms and supporting documents</b><div class="hint">PDF, JPG or PNG, up to 10 MB each. Drop a file on any row's Upload button, or add an extra document here.</div></div>
+ const groups=[...new Set(all.map(x=>x.group))],lh=S.letterhead;
+ return `<div class="lh"><div><b>Letterhead</b><div class="hint">${lh?"Uploaded: "+esc(lh.file):"Upload your letterhead (PNG, JPG or PDF) to merge it onto declarations and letters. Merging is optional."}</div></div>
+  <div class="dact">${lh?`<a class="btn ghost sm" href="${fileUrl("letterhead")}" target="_blank" rel="noopener">View</a>`:""}${canEdit()?`<label class="btn sec sm" for="up-letterhead">${lh?"Replace letterhead":"Upload letterhead"}</label><input type="file" id="up-letterhead" data-up="letterhead" accept="image/png,image/jpeg,application/pdf" hidden>`:""}</div></div>
+  <div class="drop" id="drop"><div><b>Upload signed forms and supporting documents</b><div class="hint">PDF, JPG or PNG, up to 10 MB each. Sign forms by hand or with a Digital Signature Certificate (DSC).</div></div>
   <div class="dact"><button class="btn sec" data-act="gen"${notGen?"":" disabled"}>${notGen?`Generate ${notGen} form${notGen>1?"s":""}`:"All forms generated"}</button><label class="btn pri" for="extraFile">Add other document</label><input type="file" id="extraFile" hidden></div></div>
   <div class="doc-tools"><input class="in" id="docQ" placeholder="Search documents" value="${esc(docQ)}" aria-label="Search documents">
   <div class="chipset">${[["all",`All · ${all.length}`],["todo",`Action needed · ${todo}`],["done",`Uploaded · ${all.filter(x=>x.s==="up").length}`]].map(([k,l])=>`<button class="chip${docFilter===k?" on":""}" data-filter="${k}">${l}</button>`).join("")}</div></div>
   ${groups.map(g=>{const items=L.filter(x=>x.group===g);if(!items.length)return"";return `<div class="dgroup"><h3>${esc(g)} <span>${items.filter(x=>x.s==="up").length}/${items.length}</span></h3><div class="dlist">${items.map(docRow).join("")}</div></div>`}).join("")||`<div class="card empty">No documents match.</div>`}`;
 }
 function docRow(x){
- const rv=x.s==="up"?((S._wf||{}).docReview||{})[x.id]:null;
- const [l,c]=rv?(rv.s==="verified"?["Verified","ver"]:["Rejected","rej"]):SLBL[x.s];
+ const rv=x.file?((S._wf||{}).docReview||{})[x.id]:null;
+ const [l,c]=docState(x);
  const edit=canEdit(),opsCan=({reviewer:"Business review",maker:"Maker review",checker:"Checker review"})[ME.role]===S._status;
- const sub=(x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan")
+ const sub=(x.meta?x.meta+" · ":"")+(x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":x.s==="merged"?"Merged on letterhead. Download, sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan")
   +(rv?(rv.s==="verified"?` · Verified by ${rv.by}`:` · Rejected by ${rv.by}: ${rv.note}`):"");
  return `<div class="drow"><div class="dname"><b>${esc(x.name)}</b><small>${esc(sub)}${x.c?" · Client note: "+esc(x.c):""}</small></div><span class="st ${c}">${l}</span>
  <div class="dact">${x.kind==="form"&&x.s!=="none"?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">Open form</button>`:""}
- ${x.s==="up"&&x.file?(x.demo?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">View file</button>`:`<a class="btn ghost sm" href="${fileUrl(x.id)}" target="_blank" rel="noopener">View file</a>`):""}
+ ${edit&&x.lh&&(x.s==="gen"||(x.kind!=="form"&&x.file))?`<button class="btn ghost sm" data-act="merge" data-doc="${x.id}">Merge letterhead</button>`:""}
+ ${edit&&x.kind==="form"&&(x.s==="gen"||x.s==="merged")?`<button class="btn ghost sm" data-act="dsc" data-doc="${x.id}">Sign</button>`:""}
+ ${x.file?(x.demo?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">View file</button>`:`<a class="btn ghost sm" href="${fileUrl(x.id)}" target="_blank" rel="noopener">View file</a>`):""}
  ${edit&&x.s!=="none"?`<label class="btn sec sm" for="up-${x.id}">${x.s==="up"?"Replace":"Upload"}</label><input type="file" id="up-${x.id}" data-up="${x.id}" hidden>`:""}
  ${edit?`<button class="btn ghost sm" data-act="cmt" data-doc="${x.id}" aria-label="Add note">Note</button>`:""}
- ${opsCan&&x.s==="up"?`<button class="btn sec sm" data-act="docOk" data-doc="${x.id}"${rv&&rv.s==="verified"?" disabled":""}>Verify</button><button class="btn sec sm" data-act="docNo" data-doc="${x.id}">Reject</button>`:""}</div>
+ ${opsCan&&x.file?`<button class="btn sec sm" data-act="docOk" data-doc="${x.id}"${rv&&rv.s==="verified"?" disabled":""}>Verify</button><button class="btn sec sm" data-act="docNo" data-doc="${x.id}">Reject</button>`:""}</div>
+ ${openDsc===x.id?`<div class="cmt"><span class="hint" style="flex:1">Do you have a Digital Signature Certificate (DSC)?</span><button class="btn pri sm" data-act="dscYes" data-doc="${x.id}">Yes, sign with DSC</button><button class="btn sec sm" data-act="dscNo" data-doc="${x.id}">No DSC</button></div>`:""}
  ${openCmt===x.id?`<div class="cmt"><input class="in" id="cmt-${x.id}" placeholder="Add a note for the operations team" value="${esc(x.c||"")}"><button class="btn pri sm" data-act="cmtSave" data-doc="${x.id}">Save note</button></div>`:""}
  ${openRej===x.id?`<div class="rej-note"><input class="in" id="rej-${x.id}" placeholder="Why is this document rejected?"><button class="btn pri sm" data-act="docNoSend" data-doc="${x.id}">Reject document</button></div>`:""}</div>`;
 }
@@ -1352,12 +1450,14 @@ const main=$("#main");
 main.addEventListener("input",e=>{
  const el=e.target;
  if(el.id==="docQ"){docQ=el.value;renderMain(true);const q=$("#docQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
+ if(el.id==="repQ"){rep.q=el.value;renderReport();const q=$("#repQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
  if(el.id==="homeQ"){homeQ=el.value;renderHome();const q=$("#homeQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
  if(el.closest(".wf,.rej-note,.login,.cmt,#regForm,.apps"))return;
  if(el.matches("input[type=text],input[type=email],input:not([type]),textarea")){setFrom(el);if(el.dataset.t==="partyList"&&el.dataset.c==="name"){}refreshLight();save()}
 });
 main.addEventListener("change",e=>{
  const el=e.target;
+ if(el.id==="repFrom"||el.id==="repTo"){rep[el.id==="repFrom"?"from":"to"]=el.value;showReport(rep.k);return}
  if(el.dataset.up){const f=el.files[0];if(f)uploadDoc(el.dataset.up,f);return}
  if(el.id==="extraFile"){const f=el.files[0];if(f)uploadDoc("x"+Date.now(),f,f.name.replace(/\.[^.]+$/,""));return}
  if(el.closest(".wf,.rej-note,.login,#regForm,.apps"))return;
@@ -1385,7 +1485,15 @@ document.addEventListener("click",e=>{
  if(a==="del"){const t=b.dataset.t,r=+b.dataset.r;const removed=S[t].splice(r,1)[0];renderMain(true);save();
   toast("Row removed","Undo",()=>{S[t].splice(r,0,removed);renderMain(true);save()})}
  if(a==="gen"){DOCS.forEach(([id,,k])=>{if(k==="form"&&!(S.docs[id]&&S.docs[id].s))S.docs[id]={s:"gen"}});renderMain(true);save();toast("Forms generated from your answers. Download, sign and upload them.")}
- if(a==="dl"){const d=docList().find(x=>x.id===b.dataset.doc);openSummary(d?d.name+(d.demo?" (sample placeholder)":""):"Application form")}
+ if(a==="dl"){const d=docList().find(x=>x.id===b.dataset.doc);openSummary(d?d.name+(d.demo?" (sample placeholder)":""):"Application form",null,d&&d.s==="merged")}
+ if(a==="merge"){if(!S.letterhead){toast("Upload your letterhead before merging documents.");return}const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),s:"merged"};renderMain(true);save();toast("Merged on your letterhead.")}
+ if(a==="dsc"){openDsc=openDsc===b.dataset.doc?null:b.dataset.doc;renderMain(true)}
+ if(a==="dscYes"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),s:"up",file:id+"-signed-dsc.pdf",demo:true,dsc:true};openDsc=null;renderMain(true);save();toast("Signed on the DSC provider's site and attached (simulated).")}
+ if(a==="dscNo"){openDsc=null;renderMain(true);toast("Download the form, sign it by hand and upload the signed copy.")}
+ if(a==="kycClose"){kycOpen=null;renderMain(true)}
+ if(a==="kycSave"){const p=parties().find(x=>x._id===kycOpen);if(!p)return;const t=status({fields:kycFields(p)});
+  if(t.miss.length){showErr.pkyc=true;renderMain(true);const f=document.querySelector("#kycCard .err");if(f)f.scrollIntoView({behavior:"smooth",block:"center"});toast(`${t.miss.length} required item${t.miss.length>1?"s":""} missing or invalid. Your entries are kept.`);return}
+  kycOpen=null;showErr.pkyc=false;renderMain(true);save();toast("KYC details saved for "+p.name)}
  if(a==="cmt"){openCmt=openCmt===b.dataset.doc?null:b.dataset.doc;renderMain(true);const i=$("#cmt-"+b.dataset.doc);if(i)i.focus()}
  if(a==="cmtSave"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),c:$("#cmt-"+id).value.trim()};openCmt=null;renderMain(true);save();toast("Note saved")}
  if(a==="submit"){doAct("submit").then(()=>window.scrollTo(0,0))}
@@ -1405,6 +1513,7 @@ document.addEventListener("click",e=>{
  if(a==="newApp")openBasic();
  if(a==="basicGo")proceedBasic();
  if(a==="export")exportApps();
+ if(a==="repExport")downloadCSV(rep.k+"-report",REPORTS[rep.k].cols,repRows());
  if(a==="cancelSend")cancelApp(b.dataset.id);
  if(a==="register"){history.pushState({},"","?register");renderRegister()}
  if(a==="toLogin"){history.pushState({},"",location.pathname);renderLogin()}
@@ -1415,6 +1524,8 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("click",e=>{
  const o=e.target.closest("[data-open]");if(o){openApp(o.dataset.open);return}
+ const ky=e.target.closest("[data-kyc]");if(ky){kycOpen=kycOpen===ky.dataset.kyc?null:ky.dataset.kyc;renderMain(true);const c=$("#kycCard");if(c)c.scrollIntoView({behavior:"smooth",block:"start"});return}
+ const rp=e.target.closest("[data-rep]");if(rp){rep.q="";showReport(rp.dataset.rep);return}
  const h=e.target.closest("[data-hf]");if(h){homeFilter=h.dataset.hf;renderHome();return}
  const sm=e.target.closest("[data-summary]");if(sm){summaryOf(sm.dataset.summary);return}
  const cn=e.target.closest("[data-cancel]");if(cn){cancelId=cancelId===cn.dataset.cancel?null:cn.dataset.cancel;renderHome();const i=$("#cancel-reason");if(i)i.focus();return}

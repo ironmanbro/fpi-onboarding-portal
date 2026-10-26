@@ -52,6 +52,7 @@ async function route(req, env, url) {
   const m = req.method;
   const parts = url.pathname.slice(5).split("/").filter(Boolean);
   if (parts[0] === "registrations") return registrations(req, env, parts[1], parts[2]);
+  if (parts[0] === "reports" && m === "GET") return reports(env, parts[1], url);
   if (parts[0] !== "apps") return fail(404, "Not found");
   const [, id, sub, doc] = parts;
 
@@ -170,6 +171,32 @@ async function route(req, env, url) {
     }
   }
   return fail(404, "Not found");
+}
+
+// BRS section 3 reports. Roles come from the demo sign-in, so this check only keeps each report with the role it is meant for.
+const REPORT_ROLES = { admin: ["reviewer", "bizchecker"], audit: ["rm"], clients: ["maker", "checker"] };
+const EVENTS = `SELECT a.id AS app_id, a.name, a.owner, json_extract(e.value, '$.at') AS at, json_extract(e.value, '$.by') AS by_user,
+  json_extract(e.value, '$.role') AS role, json_extract(e.value, '$.what') AS what, json_extract(e.value, '$.note') AS note
+  FROM apps a, json_each(a.data, '$._wf.events') e`;
+const REPORT_SQL = {
+  // Activity of internal users: reviews, checks and approvals on applications, plus registration decisions.
+  admin: `SELECT * FROM (SELECT at, by_user, role, what, app_id AS ref, note FROM (${EVENTS}) WHERE role IN ('reviewer', 'maker', 'checker')
+    UNION ALL SELECT replace(updated_at, ' ', 'T') || 'Z', decided_by, 'bizchecker', 'Registration ' || lower(status), id, reason
+    FROM registrations WHERE status IN ('Authorised', 'Rejected'))
+    WHERE substr(at, 1, 10) BETWEEN ?1 AND ?2 ORDER BY at DESC LIMIT 2000`,
+  audit: `SELECT * FROM (${EVENTS}) WHERE substr(at, 1, 10) BETWEEN ?1 AND ?2 ORDER BY at DESC LIMIT 2000`,
+  clients: `SELECT id, name, owner, status, reg_no, json_extract(data, '$._wf.pan') AS pan, json_extract(data, '$.incCountry') AS country,
+    json_extract(data, '$.category') AS category, json_extract(data, '$.subcat') AS subcat, json_extract(data, '$.invType') AS inv_type,
+    json_extract(data, '$.lei') AS lei, json_extract(data, '$.regEmail') AS email, json_extract(data, '$._wf.nsdlRef') AS nsdl_ref,
+    json_extract(data, '$._wf.accounts') AS accounts, updated_at FROM apps
+    WHERE status IN ('Registered', 'Accounts opened', 'Completed') AND substr(updated_at, 1, 10) BETWEEN ?1 AND ?2 ORDER BY updated_at DESC LIMIT 2000`,
+};
+async function reports(env, name, url) {
+  if (!REPORT_SQL[name]) return fail(404, "Unknown report.");
+  if (!REPORT_ROLES[name].includes(url.searchParams.get("role"))) return fail(403, "This report isn't available for your role.");
+  const day = (k, d) => (/^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get(k) || "") ? url.searchParams.get(k) : d);
+  const { results } = await env.DB.prepare(REPORT_SQL[name]).bind(day("from", "0000-00-00"), day("to", "9999-99-99")).all();
+  return json({ rows: results });
 }
 
 // BR-01/02: investor registration, captured as a lead before submission, then authorised or rejected by the Business Checker.

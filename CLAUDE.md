@@ -10,7 +10,7 @@ Demo FPI onboarding app on Cloudflare Workers. Pushing to `main` deploys automat
 
 ## Section markers in public/index.html
 CSS: `/* Header */`, `/* Shell */`, `/* Main */`, `/* Tables */`, `/* Buttons */`, `/* Docs */`, `/* Review */`, `/* Applications home */`, `/* Roles, login and workflow */`. Colour tokens are in the `:root` block at the top.
-JS (`/* ---------- Name ---------- */`): Reference data, Schema (form fields; `STEPS` and `DOCS`), State (`sample()`, `blank()`), Demo sign-in (also `/* BR-01` registration, `/* BR-02` Business Checker), Status language, Cloud storage, Home (dashboard), `/* ---------- 4.2 Application Basic Information`, Workflow panel (checks, remarks, audit trail), Helpers, Render: header & rail, Render: fields, Render: main, Documents, Review, Navigation, Events.
+JS (`/* ---------- Name ---------- */`): Reference data, Schema (form fields; `STEPS` and `DOCS`), State (`sample()`, `blank()`), Demo sign-in (also `/* BR-01` registration, `/* BR-02` Business Checker), Status language, Cloud storage, Home (dashboard), Reports (BRS section 3), `/* ---------- 4.2 Application Basic Information`, Workflow panel (checks, remarks, audit trail), Helpers, Render: header & rail, Render: fields, Render: main, Related party KYC (`kycFields()` is in Schema), Documents (statuses, letterhead, DSC), Review, Navigation, Events.
 
 ## Rules
 - Keep the site unbranded: no bank, vendor or depository names in text.
