@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>FPI Onboarding Portal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B6B5C'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='12' font-weight='700' fill='white' text-anchor='middle'%3EFPI%3C/text%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -240,6 +241,31 @@ td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
   .actions .hint{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Applications home */
+button.brand{border:0;background:none;padding:0;color:inherit}
+body.home .shell{grid-template-columns:minmax(0,1fr);max-width:1100px}
+body.home aside.rail,body.home .menu-btn,body.home .facts{display:none}
+.banner{background:var(--info-soft);border-radius:var(--r);padding:12px 14px;font-size:13px;margin-bottom:16px}
+.alist{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.arow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) 170px 120px auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.arow:last-child{border-bottom:0}
+.arow.head{background:var(--surface-2);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding-block:9px}
+.arow .nm{min-width:0}
+.arow .nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .nm small{color:var(--muted);font:500 12px var(--f-mono)}
+.mini{display:flex;align-items:center;gap:8px;font:500 12px var(--f-mono)}
+.mini .bar{flex:1;margin:0;height:5px}
+.arow .sel{min-height:32px;padding:5px 28px 5px 9px;font-size:12.5px}
+.arow .when{font-size:12px;color:var(--muted)}
+.arow .dact{flex-wrap:nowrap}
+.icon-btn.danger{color:var(--danger)}
+@media (max-width:760px){
+  .arow{grid-template-columns:minmax(0,1fr) auto}
+  .arow.head{display:none}
+  .arow .mini,.arow .when{grid-column:1/-1}
+  .arow .sel{grid-column:1}
+}
 </style>
 
 </head>
@@ -247,7 +273,7 @@ td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
 <header class="top">
   <div class="top-row">
     <button class="menu-btn" id="menuBtn" aria-label="Open steps">☰ Steps</button>
-    <div class="brand"><span class="mark">FPI</span>Onboarding Portal</div>
+    <button class="brand" id="homeBtn" data-act="home" title="All applications"><span class="mark">FPI</span>Onboarding Portal</button>
     <div class="facts" id="facts"></div>
     <span class="saved" id="saved">Draft saved</span>
   </div>
@@ -570,7 +596,6 @@ const DOCS=[
 ];
 
 /* ---------- State ---------- */
-const KEY="fpi-onboarding-v1";
 let uid=100;const nid=()=>"r"+(++uid);
 function sample(){
  const p=[{_id:"p1",type:"Individual",name:"Ananya Rao",sig:true,ops:true,acct:true,ubo:true},
@@ -578,7 +603,7 @@ function sample(){
   {_id:"p3",type:"Individual",name:"Daniel Okafor",sig:true,acct:true,smo:true},
   {_id:"p4",type:"Individual",name:"Mei Lin Tan",sig:true,ubo:true}];
  return {
-  _sample:true,_status:"In progress",_created:"2026-10-19",_id:"FPI-261019-0142",_tab:{},
+  _sample:true,_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},
   depository:"Depository A",invType:"Non-individual",product:"FPI",category:"Category II",subcat:"Charitable organisation",constitution:"Private limited company",appType:"New",appMode:"Investing",rm:"onboarding.rm@example.com",
   invName:"Aster Ridge Charitable Foundation Ltd",incCountry:"Singapore",fundAdmin:"Harbourline Fund Services",mobile_cc:"+65",mobile:"8765 4306",regEmail:"ops@asterridge.example",
   panHas:"No",panStatus:"Company",aoCode:"International Taxation Ward 1(1), Mumbai",aoArea:"DLC",aoType:"W",aoRange:"406",aoNo:"1",repHas:"Yes",repTitle:"Ms",repFirst:"Priya",repLast:"Menon",
@@ -598,21 +623,104 @@ function sample(){
   rgName:"Monetary authority of the home jurisdiction",rgCountry:"Singapore",rgNo:"CMS100845",rgCap:"Registered charity and licensed fund management company (accredited investors only).",viaGc:"No",
   disc:"No",clubOpt:"We do not share common ownership (directly or indirectly) of more than 50%, or common control, with other FPIs, and are not exempt under regulation 22(4).",
   priorHas:"No",odiHedge:"NA",bankDecl:"We are not a bank or a subsidiary of a bank.",
-  docs:{caf:{s:"gen"},cafAnx:{s:"gen"},amlQ:{s:"gen"},autoDebit:{s:"up",file:"auto-debit-signed.pdf"},bankDecl:{s:"gen"},boardRes:{s:"up",file:"board-resolution-2026.pdf"},bankProof:{s:"up",file:"bank-statement-sep-2026.pdf"},coi:{s:"up",file:"certificate-of-incorporation.pdf"}}
+  docs:{caf:{s:"gen"},cafAnx:{s:"gen"},amlQ:{s:"gen"},bankDecl:{s:"gen"}}
  };
 }
-function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:"FPI-"+new Date().toISOString().slice(2,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*9000)+1000),_tab:{},partyList:[],docs:{},offSame:false}}
-function load(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
-let S=load()||sample();
+const newId=()=>"FPI-"+new Date().toISOString().slice(2,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*9000)+1000);
+function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},partyList:[],docs:{},offSame:false}}
+let S=null,apps=[],homeErr="";
 let cur={st:0,se:0};
-try{const c=JSON.parse(localStorage.getItem(KEY+":pos")||"null");if(c&&STEPS[c.st]&&STEPS[c.st].sections[c.se])cur=c}catch(e){}
 const showErr={};
-let saveT;
-function save(){
- clearTimeout(saveT);
- $("#saved").textContent="Saving…";
- saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem(KEY+":pos",JSON.stringify(cur))}catch(e){}
-  $("#saved").textContent="Draft saved "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})},400);
+
+/* ---------- Cloud storage (Cloudflare D1 + KV via /api) ---------- */
+async function api(path,opt={}){
+ const r=await fetch("/api/apps"+path,{...opt,headers:{"content-type":"application/json",...(opt.headers||{})}});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(j.error||`The server returned an error (${r.status}).`);
+ return j;
+}
+const hhmm=()=>new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+const setSaved=t=>{$("#saved").textContent=t};
+let saveT,saving=null;
+function save(){if(!S)return;clearTimeout(saveT);setSaved("Saving…");saveT=setTimeout(flush,600)}
+async function flush(){
+ clearTimeout(saveT);if(!S)return;
+ const body=JSON.stringify({data:{...S,_pos:cur},progress:totals().pct});
+ try{saving=api("/"+encodeURIComponent(S._id),{method:"PUT",body});await saving;setSaved("Saved to cloud "+hhmm())}
+ catch(e){setSaved("Not saved · retrying");saveT=setTimeout(flush,5000)}
+ finally{saving=null}
+}
+window.addEventListener("beforeunload",e=>{if(saveT&&$("#saved").textContent.startsWith("Saving")){flush();e.preventDefault()}});
+
+async function showHome(push){
+ if(S)await flush();
+ S=null;document.body.classList.add("home");setSaved("");
+ if(push!==false)history.pushState({},"",location.pathname);
+ $("#main").innerHTML=`<div class="empty">Loading applications…</div>`;
+ try{apps=(await api("")).apps;homeErr=""}catch(e){homeErr=e.message}
+ renderHome();
+}
+function renderHome(){
+ const rel=d=>{const t=new Date(d.replace(" ","T")+"Z");const m=Math.round((Date.now()-t)/60000);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":t.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})};
+ const STS=["In progress","Submitted","Under review","Query raised","Approved","Rejected"];
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>Applications</h1><p>Every application here is saved in the cloud, so you can open it from any device with this link.</p></div>
+ <div class="dact"><button class="btn sec" data-act="newBlank">New blank application</button><button class="btn pri" data-act="newSample">New sample application</button></div></div>
+ <div class="banner"><b>Demo environment.</b> Use made-up data only. Anyone with this link can see and edit these applications.</div>
+ ${homeErr?`<div class="note" style="color:var(--danger)">Could not load applications: ${esc(homeErr)} <button class="btn ghost sm" data-act="home">Try again</button></div>`:
+ apps.length?`<div class="alist"><div class="arow head"><span>Applicant</span><span>Progress</span><span>Status</span><span>Updated</span><span></span></div>
+ ${apps.map(a=>`<div class="arow"><div class="nm"><b>${esc(a.name||"Untitled applicant")}</b><small>${esc(a.id)}</small></div>
+  <div class="mini"><div class="bar"><i style="width:${a.progress}%"></i></div>${a.progress}%</div>
+  <select class="sel" data-status="${esc(a.id)}" aria-label="Status of ${esc(a.name||a.id)}">${STS.map(s=>`<option${s===a.status?" selected":""}>${s}</option>`).join("")}</select>
+  <span class="when">${rel(a.updated_at)}</span>
+  <div class="dact"><button class="btn sec sm" data-open="${esc(a.id)}">Open</button><button class="icon-btn danger" data-act="delApp" data-id="${esc(a.id)}" aria-label="Delete ${esc(a.name||a.id)}" title="Delete">${trash}</button></div></div>`).join("")}</div>`:
+ `<div class="card empty"><b>No applications yet.</b><br>Start with a sample application to see a filled-in example, or a blank one to try it from scratch.</div>`}`;
+}
+async function openApp(id,push){
+ $("#main").innerHTML=`<div class="empty">Opening ${esc(id)}…</div>`;
+ try{const {data}=await api("/"+encodeURIComponent(id));S=data;S._tab=S._tab||{};S.docs=S.docs||{};
+  const p=S._pos;cur=p&&STEPS[p.st]&&STEPS[p.st].sections[p.se]?p:{st:0,se:0};
+  for(const k in showErr)delete showErr[k];
+  document.body.classList.remove("home");setSaved("Saved to cloud");
+  if(push!==false)history.pushState({},"","?app="+encodeURIComponent(id));
+  renderMain();window.scrollTo(0,0);
+ }catch(e){S=null;homeErr="";await showHome(false);toast(e.message)}
+}
+async function createApp(data){
+ try{await api("",{method:"POST",body:JSON.stringify({data,progress:0})});await openApp(data._id)}
+ catch(e){toast("Could not create the application: "+e.message)}
+}
+async function uploadDoc(docId,file,extraName){
+ if(file.size>10*1024*1024){toast("That file is over 10 MB. Compress or split it, then try again.");return}
+ toast("Uploading "+file.name+"…");
+ try{await flush();
+  await api(`/${encodeURIComponent(S._id)}/files/${docId}`,{method:"PUT",body:file,headers:{"content-type":file.type||"application/octet-stream","x-file-name":encodeURIComponent(file.name)}});
+  if(extraName){S.extraDocs=S.extraDocs||[];S.extraDocs.push({id:docId,name:extraName})}
+  S.docs[docId]={...(S.docs[docId]||{}),s:"up",file:file.name};renderMain(true);save();toast("Uploaded "+file.name);
+ }catch(e){toast("Upload failed: "+e.message)}
+}
+const fileUrl=id=>`/api/apps/${encodeURIComponent(S._id)}/files/${id}`;
+
+/* A printable summary of the application, used for the generated forms */
+function openSummary(title){
+ const v=x=>Array.isArray(x)?x.join(", "):x===true?"Yes":x===false||x==null||x===""?"—":String(x);
+ let h="";
+ STEPS.slice(0,-2).forEach(s=>s.sections.forEach(sec=>{
+  let rows="";
+  sec.fields.forEach(f=>{
+   if(!vis(f)||f.type==="h"||f.type==="note")return;
+   if(f.type==="table"){const r=S[f.id]||[];rows+=`<tr><th>${esc(f.label)}</th><td>${r.length?r.map(x=>esc(f.cols.map(c=>v(x[c.k])).join(" · "))).join("<br>"):"—"}</td></tr>`;return}
+   if(f.type==="derived"){const ps=parties().filter(f.filter);rows+=`<tr><th>${esc(f.label)}</th><td>${ps.map(p=>esc(p.name+": "+f.cols.map(c=>c.label+" "+v(((S[f.id]||{})[p._id]||{})[c.k])).join(", "))).join("<br>")||"—"}</td></tr>`;return}
+   const val=f.type==="ro"?f.ro(S):f.type==="phone"?[S[f.id+"_cc"],S[f.id]].filter(Boolean).join(" "):S[f.id];
+   rows+=`<tr><th>${esc(f.label)}</th><td>${esc(v(val))}</td></tr>`;
+  });
+  if(rows)h+=`<h2>${esc(s.title)} · ${esc(sec.title)}</h2><table>${rows}</table>`;
+ }));
+ const w=window.open("","_blank");
+ if(!w){toast("Allow pop-ups for this site to open the form.");return}
+ w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)} · ${esc(S._id)}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#13201D}h1{font-size:22px;margin:0}h2{font-size:14px;margin:28px 0 8px;color:#0B6B5C;text-transform:uppercase;letter-spacing:.05em}table{border-collapse:collapse;width:100%}th,td{border:1px solid #DCE3E0;padding:6px 10px;text-align:left;vertical-align:top}th{width:42%;font-weight:600;background:#F7F9F8}.meta{color:#5A6B66}.sig{margin-top:48px;display:flex;gap:48px}.sig div{flex:1;border-top:1px solid #13201D;padding-top:6px}@media print{body{margin:0}}</style>
+ <h1>${esc(title)}</h1><p class="meta">Application ${esc(S._id)} · ${esc(S.invName||"")} · Generated ${new Date().toLocaleString("en-GB")}</p>${h}
+ <div class="sig"><div>Authorised signatory</div><div>Date and place</div></div><script>setTimeout(()=>print(),300)<\/script>`);
+ w.document.close();
 }
 
 /* ---------- Helpers ---------- */
@@ -670,7 +778,7 @@ function renderRail(){
   if(s.sections.length>1&&i===cur.st){h+=`<ul class="subs">`+s.sections.map((x,j)=>`<li><button class="${j===cur.se?"on":""}" data-go="${i}:${j}"><span class="dot ${stateOf(sts[j])}"></span>${esc(x.title)}</button></li>`).join("")+`</ul>`}
   h+=`</div>`;
  });
- h+=`</nav><div class="rail-foot"><button class="linkbtn" data-act="sample">Reload sample application</button><button class="linkbtn" data-act="blank">Start a blank application</button></div>`;
+ h+=`</nav><div class="rail-foot"><button class="linkbtn" data-act="home">← All applications</button></div>`;
  $("#rail").innerHTML=h;
 }
 
@@ -791,7 +899,8 @@ function docRow(x){
  const [l,c]=SLBL[x.s];
  const sub=x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan";
  return `<div class="drow"><div class="dname"><b>${esc(x.name)}</b><small>${esc(sub)}${x.c?" · Note: "+esc(x.c):""}</small></div><span class="st ${c}">${l}</span>
- <div class="dact">${x.kind==="form"&&x.s!=="none"?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">Download</button>`:""}
+ <div class="dact">${x.kind==="form"&&x.s!=="none"?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">Open form</button>`:""}
+ ${x.s==="up"&&x.file?`<a class="btn ghost sm" href="${fileUrl(x.id)}" target="_blank" rel="noopener">View file</a>`:""}
  ${x.s==="none"?"":`<label class="btn sec sm" for="up-${x.id}">${x.s==="up"?"Replace":"Upload"}</label><input type="file" id="up-${x.id}" data-up="${x.id}" hidden>`}
  <button class="btn ghost sm" data-act="cmt" data-doc="${x.id}" aria-label="Add note">Note</button></div>
  ${openCmt===x.id?`<div class="cmt"><input class="in" id="cmt-${x.id}" placeholder="Add a note for the operations team" value="${esc(x.c||"")}"><button class="btn pri sm" data-act="cmtSave" data-doc="${x.id}">Save note</button></div>`:""}</div>`;
@@ -848,9 +957,9 @@ main.addEventListener("input",e=>{
 });
 main.addEventListener("change",e=>{
  const el=e.target;
- if(el.dataset.up){const f=el.files[0];if(!f)return;if(f.size>10*1024*1024){toast("That file is over 10 MB. Compress it or split it, then try again.");return}
-  S.docs[el.dataset.up]={...(S.docs[el.dataset.up]||{}),s:"up",file:f.name};renderMain(true);save();toast("Uploaded "+f.name);return}
- if(el.id==="extraFile"){const f=el.files[0];if(!f)return;S.extraDocs=S.extraDocs||[];const id="x"+Date.now();S.extraDocs.push({id,name:f.name.replace(/\.[^.]+$/,"")});S.docs[id]={s:"up",file:f.name};renderMain(true);save();toast("Added "+f.name);return}
+ if(el.dataset.up){const f=el.files[0];if(f)uploadDoc(el.dataset.up,f);return}
+ if(el.id==="extraFile"){const f=el.files[0];if(f)uploadDoc("x"+Date.now(),f,f.name.replace(/\.[^.]+$/,""));return}
+ if(el.dataset.status){const id=el.dataset.status,status=el.value;api("/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({status})}).then(()=>toast("Status set to "+status)).catch(er=>toast(er.message));return}
  if(el.matches("input[type=text],input[type=email],textarea"))return;
  setFrom(el);save();
  if(el.dataset.t==="partyList"||el.matches("select,input[type=radio],input[type=checkbox],input[type=date]"))renderMain(true);
@@ -875,14 +984,20 @@ document.addEventListener("click",e=>{
  if(a==="del"){const t=b.dataset.t,r=+b.dataset.r;const removed=S[t].splice(r,1)[0];renderMain(true);save();
   toast("Row removed","Undo",()=>{S[t].splice(r,0,removed);renderMain(true);save()})}
  if(a==="gen"){DOCS.forEach(([id,,k])=>{if(k==="form"&&!(S.docs[id]&&S.docs[id].s))S.docs[id]={s:"gen"}});renderMain(true);save();toast("Forms generated from your answers. Download, sign and upload them.")}
- if(a==="dl")toast("Downloads are disabled in this preview build.");
+ if(a==="dl"){const d=DOCS.find(x=>x[0]===b.dataset.doc);openSummary(d?d[1]:"Application form")}
  if(a==="cmt"){openCmt=openCmt===b.dataset.doc?null:b.dataset.doc;renderMain(true);const i=$("#cmt-"+b.dataset.doc);if(i)i.focus()}
  if(a==="cmtSave"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),c:$("#cmt-"+id).value.trim()};openCmt=null;renderMain(true);save();toast("Note saved")}
- if(a==="submit"){S._status="Submitted";renderMain();save();window.scrollTo(0,0)}
- if(a==="sample"||a==="blank"){
-  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent=a==="sample"?"Click again to replace your answers with sample data":"Click again to clear every answer";setTimeout(()=>{if(b.isConnected){b.dataset.confirm="";renderRail()}},4000);return}
-  S=a==="sample"?sample():blank();for(const k in showErr)delete showErr[k];cur={st:0,se:0};go(0,0);toast(a==="sample"?"Sample application loaded":"Blank application started")}
+ if(a==="submit"){S._status="Submitted";renderMain();flush();window.scrollTo(0,0)}
+ if(a==="home"){closeNav();showHome()}
+ if(a==="newSample")createApp(sample());
+ if(a==="newBlank")createApp(blank());
+ if(a==="delApp"){
+  const id=b.dataset.id;
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.innerHTML="Delete?";b.classList.add("btn","sm");setTimeout(()=>{if(b.isConnected){b.dataset.confirm="";b.innerHTML=trash;b.classList.remove("btn","sm")}},4000);return}
+  api("/"+encodeURIComponent(id),{method:"DELETE"}).then(()=>{apps=apps.filter(x=>x.id!==id);renderHome();toast("Application deleted")}).catch(er=>toast(er.message))}
 });
+document.addEventListener("click",e=>{const o=e.target.closest("[data-open]");if(o)openApp(o.dataset.open)});
+window.addEventListener("popstate",()=>{const id=new URLSearchParams(location.search).get("app");id?openApp(id,false):showHome(false)});
 $("#menuBtn").onclick=()=>document.body.classList.add("nav-open");
 $("#scrim").onclick=closeNav;
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeNav()});
@@ -890,9 +1005,9 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeNav()});
 document.addEventListener("dragover",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d){e.preventDefault();d.classList.add("over")}});
 document.addEventListener("dragleave",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d)d.classList.remove("over")});
 document.addEventListener("drop",e=>{const d=e.target.closest&&e.target.closest("#drop");if(!d)return;e.preventDefault();d.classList.remove("over");const f=e.dataTransfer.files[0];if(!f)return;
- S.extraDocs=S.extraDocs||[];const id="x"+Date.now();S.extraDocs.push({id,name:f.name.replace(/\.[^.]+$/,"")});S.docs[id]={s:"up",file:f.name};renderMain(true);save();toast("Added "+f.name)});
+ uploadDoc("x"+Date.now(),f,f.name.replace(/\.[^.]+$/,""))});
 
-renderMain();
+{const id=new URLSearchParams(location.search).get("app");id?openApp(id,false):showHome(false)}
 </script>
 </body>
 </html>

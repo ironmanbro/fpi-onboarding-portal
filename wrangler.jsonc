@@ -1,8 +1,17 @@
 {
   "name": "fpi-onboarding-portal",
+  "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "assets": {
-    "directory": ".",
-    "not_found_handling": "single-page-application"
-  }
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "fpi-onboarding-db", "database_id": "914f1321-f20f-4fbe-b3ab-d8703d16d5f4" }
+  ],
+  "kv_namespaces": [
+    { "binding": "FILES", "id": "1bcdef8a48ef4318917bfba87ca6013a" }
+  ],
+  "observability": { "enabled": true }
 }

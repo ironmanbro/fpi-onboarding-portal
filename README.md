@@ -11,19 +11,27 @@ A guided onboarding portal for Foreign Portfolio Investors. It is a static front
 6. Documents: generate, upload, notes
 7. Review & submit
 
-## Data handling
-Answers are stored only in the viewer's browser (`localStorage`). Nothing is sent to a server. Use sample data only; do not enter real client or KYC information.
+## How it works
+- `public/` holds the site (one `index.html`, plus `_headers` and `robots.txt`).
+- `src/index.js` is a Cloudflare Worker that serves the site and a small API under `/api/apps`.
+- Applications are stored in the D1 database `fpi-onboarding-db` (schema in `migrations/0001_init.sql`).
+- Uploaded files (10 MB max each) are stored in the KV namespace `fpi-onboarding-files`.
+- Bindings are declared in `wrangler.jsonc`. Every push to `main` deploys through Cloudflare Workers Builds (`npx wrangler deploy`).
 
-## Deploy on Cloudflare Pages
-1. Cloudflare dashboard → Workers & Pages → Create → Pages → **Connect to Git**.
-2. Select this repository.
-3. Build settings: Framework preset **None**, build command **empty**, build output directory **/**.
-4. Save and Deploy. Every push to `main` redeploys automatically.
+## API
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/apps` | List applications |
+| POST | `/api/apps` | Create an application |
+| GET / PUT / DELETE | `/api/apps/:id` | Read, save or delete one |
+| PATCH | `/api/apps/:id` | Change status |
+| PUT / GET / DELETE | `/api/apps/:id/files/:docId` | Upload, view or remove a document |
 
-`_headers` sets security headers and `robots.txt` keeps the demo out of search engines.
+## Demo environment only
+There is no login: anyone with the link can view and edit applications. Use made-up data only. Do not enter real client or KYC information.
 
 ## Run locally
-Open `index.html` in a browser, or run `python3 -m http.server` in this folder.
-
-## Current deployment
-Deployed as a Cloudflare Worker with static assets (`wrangler.jsonc`), connected to this repo. Every push to `main` runs `npx wrangler deploy`. `.assetsignore` keeps the README and config files from being served.
+```
+npx wrangler d1 execute fpi-onboarding-db --local --file migrations/0001_init.sql
+npx wrangler dev
+```
