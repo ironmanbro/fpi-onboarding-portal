@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>FPI Onboarding Portal</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B6B5C'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='12' font-weight='700' fill='white' text-anchor='middle'%3EFPI%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23E8601C'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='12' font-weight='700' fill='white' text-anchor='middle'%3EFPI%3C/text%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,24 +13,27 @@
 <style>
 /* Layout: sticky header with application facts, left journey rail (collapses to a drawer on phones), one section per screen with a sticky action bar. */
 :root{
-  --bg:#F2F5F4; --surface:#FFFFFF; --surface-2:#F7F9F8; --ink:#13201D; --muted:#5A6B66; --line:#DCE3E0; --line-strong:#C3CEC9;
-  --accent:#0B6B5C; --accent-ink:#FFFFFF; --accent-soft:#E2F0EC; --accent-hover:#085649;
+  --bg:#F6F3F1; --surface:#FFFFFF; --surface-2:#FAF7F5; --ink:#241815; --muted:#6B5D58; --line:#E7DFDB; --line-strong:#D2C6C0;
+  --accent:#AE282E; --accent-ink:#FFFFFF; --accent-soft:#FBEBE7; --accent-hover:#8C1F24;
+  --cta:#E8601C; --cta-ink:#FFFFFF; --cta-hover:#C94E12;
   --warn:#9A6212; --warn-soft:#FBF0DC; --danger:#B42318; --danger-soft:#FDEBE8; --ok:#1E7445; --ok-soft:#E3F3E8;
   --info:#2B5B8A; --info-soft:#E6EEF7;
-  --shadow:0 1px 2px rgba(19,32,29,.06),0 4px 16px rgba(19,32,29,.05);
+  --shadow:0 1px 2px rgba(36,24,21,.06),0 4px 16px rgba(36,24,21,.05);
   --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --r:8px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0E1513; --surface:#151F1D; --surface-2:#1A2624; --ink:#E3ECE9; --muted:#93A5A0; --line:#28362F; --line-strong:#3A4B46;
-  --accent:#43B9A2; --accent-ink:#04211B; --accent-soft:#14352E; --accent-hover:#5ccbb4;
+  --bg:#16100E; --surface:#1F1715; --surface-2:#261C19; --ink:#F2E9E6; --muted:#B09F99; --line:#3A2C28; --line-strong:#4D3C37;
+  --accent:#F28C70; --accent-ink:#2A0E08; --accent-soft:#3D1E19; --accent-hover:#F6A68F;
+  --cta:#F37021; --cta-ink:#FFFFFF; --cta-hover:#F5853F;
   --warn:#E3AB52; --warn-soft:#382A12; --danger:#F07D70; --danger-soft:#3B1916; --ok:#5DC88E; --ok-soft:#14301F;
   --info:#83B2E0; --info-soft:#172A3D;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0E1513; --surface:#151F1D; --surface-2:#1A2624; --ink:#E3ECE9; --muted:#93A5A0; --line:#28362F; --line-strong:#3A4B46;
-  --accent:#43B9A2; --accent-ink:#04211B; --accent-soft:#14352E; --accent-hover:#5ccbb4;
+  --bg:#16100E; --surface:#1F1715; --surface-2:#261C19; --ink:#F2E9E6; --muted:#B09F99; --line:#3A2C28; --line-strong:#4D3C37;
+  --accent:#F28C70; --accent-ink:#2A0E08; --accent-soft:#3D1E19; --accent-hover:#F6A68F;
+  --cta:#F37021; --cta-ink:#FFFFFF; --cta-hover:#F5853F;
   --warn:#E3AB52; --warn-soft:#382A12; --danger:#F07D70; --danger-soft:#3B1916; --ok:#5DC88E; --ok-soft:#14301F;
   --info:#83B2E0; --info-soft:#172A3D;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}
@@ -46,11 +49,12 @@ button{cursor:pointer}
 h1,h2,h3{text-wrap:balance;margin:0}
 
 /* Header */
+.top::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--cta),#AE282E)}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--surface);border-bottom:1px solid var(--line);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .top-row{display:flex;align-items:center;gap:16px;min-height:56px;flex-wrap:wrap;padding-block:8px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;font-size:15px;white-space:nowrap}
-.mark{width:28px;height:28px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:600 12px var(--f-mono)}
+.mark{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--cta),#AE282E);color:#FFFFFF;display:grid;place-items:center;font:600 12px var(--f-mono)}
 .facts{display:flex;gap:6px 18px;flex-wrap:wrap;flex:1;min-width:0;align-items:center}
 .fact{display:flex;flex-direction:column;line-height:1.25}
 .fact small{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -166,8 +170,8 @@ td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
 
 /* Buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:7px;padding:9px 16px;font-weight:600;font-size:13.5px;border:1px solid transparent;white-space:nowrap}
-.btn.pri{background:var(--accent);color:var(--accent-ink)}
-.btn.pri:hover{background:var(--accent-hover)}
+.btn.pri{background:var(--cta);color:var(--cta-ink)}
+.btn.pri:hover{background:var(--cta-hover)}
 .btn.sec{background:var(--surface);border-color:var(--line-strong)}
 .btn.sec:hover{border-color:var(--muted)}
 .btn.ghost{background:none;color:var(--accent);padding-inline:8px}
@@ -889,7 +893,7 @@ function openSummary(title){
  }));
  const w=window.open("","_blank");
  if(!w){toast("Allow pop-ups for this site to open the form.");return}
- w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)} · ${esc(S._id)}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#13201D}h1{font-size:22px;margin:0}h2{font-size:14px;margin:28px 0 8px;color:#0B6B5C;text-transform:uppercase;letter-spacing:.05em}table{border-collapse:collapse;width:100%}th,td{border:1px solid #DCE3E0;padding:6px 10px;text-align:left;vertical-align:top}th{width:42%;font-weight:600;background:#F7F9F8}.meta{color:#5A6B66}.sig{margin-top:48px;display:flex;gap:48px}.sig div{flex:1;border-top:1px solid #13201D;padding-top:6px}@media print{body{margin:0}}</style>
+ w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)} · ${esc(S._id)}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#13201D}h1{font-size:22px;margin:0}h2{font-size:14px;margin:28px 0 8px;color:#AE282E;text-transform:uppercase;letter-spacing:.05em}table{border-collapse:collapse;width:100%}th,td{border:1px solid #DCE3E0;padding:6px 10px;text-align:left;vertical-align:top}th{width:42%;font-weight:600;background:#F7F9F8}.meta{color:#5A6B66}.sig{margin-top:48px;display:flex;gap:48px}.sig div{flex:1;border-top:1px solid #13201D;padding-top:6px}@media print{body{margin:0}}</style>
  <h1>${esc(title)}</h1><p class="meta">Application ${esc(S._id)} · ${esc(S.invName||"")} · Generated ${new Date().toLocaleString("en-GB")}</p>${h}
  <div class="sig"><div>Authorised signatory</div><div>Date and place</div></div>`);
  w.document.close();
