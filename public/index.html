@@ -316,6 +316,23 @@ body.home aside.rail,body.home .menu-btn,body.home .facts{display:none}
 .drow .rej-note{grid-column:1/-1;display:flex;gap:8px}
 .drow .rej-note .in{flex:1}
 .arow .nx{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.rhead{display:flex;gap:12px;align-items:center}
+.rhead small{display:block;margin-top:1px}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin:0;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+table.apps td{vertical-align:top}
+table.apps .mini{margin-top:6px;max-width:160px}
+.in.bad{border-color:var(--danger)}
+td .in:disabled,td input[type=checkbox]:disabled{opacity:.4}
+.modal{border:0;border-radius:12px;padding:0;width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 48px);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal::backdrop{background:rgba(20,10,8,.45)}
+.modal form{display:flex;flex-direction:column;max-height:calc(100vh - 48px)}
+.mhead{display:flex;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.mhead h2{font-size:18px;font-weight:700}
+.mhead p{margin:4px 0 0}
+#basicBody{padding:18px 20px;overflow:auto;display:grid;gap:14px}
+.mfoot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}
+@media (max-width:620px){#basicBody .grid{grid-template-columns:minmax(0,1fr)!important}}
 @media (max-width:820px){.roles{grid-template-columns:minmax(0,1fr)}.tl li{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:620px){.who span:not(.role){display:none}}
 @media (max-width:760px){
@@ -344,6 +361,11 @@ body.home aside.rail,body.home .menu-btn,body.home .facts{display:none}
   <main id="main"></main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<dialog id="basicDlg" class="modal" aria-labelledby="basicTitle"><form method="dialog">
+  <div class="mhead"><div><h2 id="basicTitle">Application Basic Information</h2><p class="hint">Complete the basic application information to initiate the onboarding journey.</p></div><button class="icon-btn" value="cancel" aria-label="Close">✕</button></div>
+  <div id="basicBody"></div>
+  <div class="mfoot"><button class="btn ghost" value="cancel">Cancel</button><button class="btn pri" type="button" data-act="basicGo">Proceed</button></div>
+</form></dialog>
 
 <script>
 /* ---------- Reference data ---------- */
@@ -352,6 +374,9 @@ const CN=COUNTRIES.map(c=>c[0]);
 const YN=["Yes","No"], YNNA=["Yes","No","NA"];
 const SUBCAT={"Category I":["Government and government-related investor","Pension fund","Insurance or reinsurance company","Bank","Appropriately regulated fund","University fund","Sovereign wealth fund"],
  "Category II":["Appropriately regulated fund (not in Category I)","Endowment","Charitable organisation","Corporate body","Family office","Individual","Unregulated fund with regulated manager"]};
+const REG_TYPES=["FPI registration with PAN (apply for PAN)","FPI registration without PAN (already hold PAN)"];
+const CONSTITUTION=["A - Sole Proprietorship","B - Partnership Firm","D - Private Limited Company","E - Public Limited Company","H - Trust","J - Limited Liability Partnership","Z - Others"];
+const AO_MASTER={"DLCC035001":{area:"DLC",type:"C",range:"035",no:"001"},"DLCW116001":{area:"DLC",type:"W",range:"116",no:"001"},"MUMW227001":{area:"MUM",type:"W",range:"227",no:"001"}};
 const POI=["Certificate of incorporation / formation","Registration certificate","Trust deed","Partnership deed","Memorandum & articles"];
 const POA=["Bank account statement (≤ 3 months old)","Utility bill (≤ 3 months old)","Registered lease agreement","Regulator-issued certificate"];
 const DESIG=["Director","Manager","Trustee","Partner","Authorised officer","Company secretary"];
@@ -367,16 +392,18 @@ const yes=k=>s=>s[k]==="Yes";
 
 const STEPS=[
 {id:"inv",title:"Investor details",sections:[
- {id:"setup",title:"Application setup",desc:"Tell us what you are applying for. These choices decide which questions appear later, so the form stays as short as possible.",fields:[
-  {id:"depository",label:"Depository",type:"select",req:1,opts:["Depository A","Depository B"]},
+ {id:"setup",title:"Application setup",desc:"Application Basic Information. These choices decide which questions appear later, so the form stays as short as possible.",fields:[
+  {id:"depository",label:"Depository",type:"radio",req:1,opts:["Depository A","Depository B"]},
   {id:"invType",label:"Investor type",type:"radio",req:1,opts:["Non-individual","Individual"]},
-  {id:"product",label:"Product",type:"select",req:1,opts:["FPI","FVCI"]},
+  {id:"regType",label:"Registration type",type:"radio",stack:1,req:1,span:"full",opts:REG_TYPES,help:"With PAN: you also apply for a PAN through this application. Without PAN: you already hold a PAN."},
+  {id:"subProd",label:"Sub-product type",type:"checks",opt:1,span:"full",opts:["PCM","CSGL","VRR"]},
+  {id:"product",label:"Product",type:"ro",ro:()=>"FPI"},
   {id:"category",label:"FPI category",type:"radio",req:1,opts:["Category I","Category II"],help:"Category I covers government-related, regulated and sovereign investors. Most funds and corporates fall under Category II."},
   {id:"subcat",label:"Sub-category",type:"select",req:1,opts:s=>SUBCAT[s.category]||[]},
-  {id:"constitution",label:"Constitution type",type:"select",req:1,opts:["Private limited company","Public limited company","Trust","LLP / partnership","Society","Fund / collective investment scheme"]},
-  {id:"appType",label:"Application type",type:"radio",req:1,opts:["New","Conversion","Re-KYC"]},
+  {id:"constitution",label:"Constitution type",type:"select",req:1,opts:CONSTITUTION},
+  {id:"appType",label:"Application type",type:"radio",req:1,opts:["New","Transition"]},
   {id:"appMode",label:"Application mode",type:"radio",req:1,opts:["Investing","Non-investing"]},
-  {id:"rm",label:"Relationship manager email",type:"email",req:1,help:"The person on our side who will handle your onboarding."}]},
+  {id:"rm",label:"Relationship manager email",type:"email",opt:1,help:"The person on our side who will handle your onboarding."}]},
  {id:"profile",title:"Investor profile",desc:"Basic identity of the applying entity, exactly as on its registration certificate.",fields:[
   {id:"invName",label:"Legal name (as per registration certificate)",req:1,span:2},
   {id:"incCountry",label:"Country of incorporation",type:"country",req:1},
@@ -384,16 +411,17 @@ const STEPS=[
   {id:"mobile",label:"Mobile number",type:"phone",req:1},
   {id:"regEmail",label:"Registered email (for communication)",type:"email",req:1}]},
  {id:"pan",title:"PAN details",desc:"Indian Permanent Account Number. If the entity does not hold one yet, we collect what is needed to apply for it on your behalf.",fields:[
-  {id:"panHas",label:"Does the applicant already have a PAN?",type:"yn",req:1},
-  {id:"panNo",label:"PAN",req:1,show:yes("panHas"),ph:"AAAAA9999A"},
+  {id:"panHas",label:"Does the applicant already have a PAN?",type:"yn",req:1,help:"Set from the registration type you chose. Change the registration type in Application setup if this is wrong."},
+  {id:"panNo",label:"PAN",req:1,show:yes("panHas"),ph:"AAAAA9999A",valid:v=>/^[A-Z]{3}[CPHFATBLJG][A-Z][0-9]{4}[A-Z]$/.test(String(v).toUpperCase())?"":"Enter a valid 10-character PAN: 5 letters, 4 numbers, 1 letter (4th letter shows the holder type)."},
   {type:"h",label:"Assessing officer (for new PAN application)",show:s=>s.panHas==="No"},
   {id:"panStatus",label:"Status of applicant",type:"select",req:1,opts:["Company","Trust","Body of individuals","Association of persons","Firm"],show:s=>s.panHas==="No"},
-  {id:"aoCode",label:"AO code",type:"select",req:1,opts:["International Taxation Ward 1(1), Mumbai","International Taxation Ward 2(1), Mumbai","International Taxation Ward 1(1), Delhi"],show:s=>s.panHas==="No",help:"The tax ward that will handle the PAN. For most foreign entities this is the International Taxation ward."},
-  {id:"aoArea",label:"Area code",req:1,show:s=>s.panHas==="No"},
-  {id:"aoType",label:"AO type",req:1,show:s=>s.panHas==="No"},
-  {id:"aoRange",label:"Range code",req:1,show:s=>s.panHas==="No"},
-  {id:"aoNo",label:"AO number",req:1,show:s=>s.panHas==="No"},
-  {id:"repHas",label:"Appoint a representative assessee or agent in India?",type:"yn",req:1,show:s=>s.panHas==="No"},
+  {id:"panTin",label:"TIN in country of residence",opt:1,show:s=>s.panHas==="No",help:"If you have no TIN, enter NA."},
+  {id:"aoCode",label:"AO code",type:"select",req:1,opts:Object.keys(AO_MASTER),show:s=>s.panHas==="No",help:"The tax office that will handle the PAN. Area code, AO type, range code and AO number fill in from the AO master."},
+  {id:"aoArea",label:"Area code",type:"ro",ro:s=>(AO_MASTER[s.aoCode]||{}).area,show:s=>s.panHas==="No"},
+  {id:"aoType",label:"AO type",type:"ro",ro:s=>(AO_MASTER[s.aoCode]||{}).type,show:s=>s.panHas==="No"},
+  {id:"aoRange",label:"Range code",type:"ro",ro:s=>(AO_MASTER[s.aoCode]||{}).range,show:s=>s.panHas==="No"},
+  {id:"aoNo",label:"AO number",type:"ro",ro:s=>(AO_MASTER[s.aoCode]||{}).no,show:s=>s.panHas==="No"},
+  {id:"repHas",label:"Appoint a representative assessee (RA) or authorised representative (AR) in India?",type:"yn",req:1,show:s=>s.panHas==="No"},
   {id:"repTitle",label:"Title",type:"select",opts:["Mr","Ms","Mx","Dr"],req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
   {id:"repFirst",label:"Agent first name",req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
   {id:"repLast",label:"Agent last name",req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
@@ -434,11 +462,13 @@ const STEPS=[
   {id:"telReg",label:"Registered office telephone",type:"phone",req:1},
   {id:"telOff",label:"Office telephone",type:"phone",opt:1}]},
  {id:"income",title:"Income details",desc:"Financial profile used for risk profiling. Figures are in Indian Rupees.",fields:[
-  {id:"incSource",label:"Source of income",type:"select",req:1,opts:["Investment income","Business income","Contributions / donations","Income from other sources"]},
+  {id:"incSource",label:"Source of income",type:"select",req:1,opts:["Capital gains","Income from house property","Income from business / profession","Income from other sources","No income"]},
+  {id:"bizCode",label:"Code for business / profession",type:"select",req:1,opts:["01 · Manufacturing","02 · Trading","03 · Financial services","04 · Professional services","05 · Other"],show:s=>s.incSource==="Income from business / profession"},
   {id:"grossInc",label:"Gross annual income (₹)",type:"num",req:1},
   {id:"netWorth",label:"Net worth (₹)",type:"num",req:1},
-  {id:"asOn",label:"Net worth as on",type:"date",req:1,help:"Must not be older than one year."},
-  {id:"occ",label:"Occupation (for non-individuals)",type:"select",req:1,opts:["Financial institution","Investment fund","Corporate","Non-profit","Government body"]},
+  {id:"asOn",label:"Net worth as on",type:"date",req:1,help:"Must not be older than one year.",valid:v=>(Date.now()-new Date(v))/864e5>366?"The As on date must not be older than one year.":new Date(v)>new Date()?"The As on date can't be in the future.":""},
+  {id:"occ",label:"Occupation (for non-individuals)",type:"select",req:1,opts:["Charitable Organization","Non-Government Organization","Financial Institution","Body Corporate","Public Company","Private Company","Other"]},
+  {id:"occOther",label:"Specify occupation",req:1,show:s=>s.occ==="Other"},
   {type:"note",label:"Answer the next two for the applicant and its authorised signatories, promoters, partners, trustees, whole-time directors and office bearers."},
   {id:"pep",label:"Is any of them a politically exposed person (PEP)?",type:"yn",req:1},
   {id:"pepRel",label:"Is any of them related to a politically exposed person?",type:"yn",req:1},
@@ -450,6 +480,8 @@ const STEPS=[
   {id:"partyList",type:"table",label:"Related parties",min:1,add:"Add party",cols:[
    {k:"type",label:"Type",type:"select",opts:["Individual","Non-individual"],req:1,w:150},
    {k:"name",label:"Name",req:1,w:200},
+   {k:"desig",label:"Designation",type:"select",opts:DESIG,w:160},
+   {k:"dir",label:"Director",type:"cb"},
    {k:"sig",label:"Authorised signatory",type:"cb"},{k:"ops",label:"Operations",type:"cb"},{k:"acct",label:"Account opening",type:"cb"},
    {k:"ubo",label:"UBO",type:"cb"},{k:"smo",label:"SMO",type:"cb",help:"Senior managing official. Required when no natural person qualifies as UBO."}]}]},
  {id:"sigs",title:"Authorised signatories",desc:"Set how accounts are operated, then the rights of each signatory. Only parties marked as authorised signatory appear here.",fields:[
@@ -457,18 +489,17 @@ const STEPS=[
   {id:"modeWeb",label:"Mode of operation · web custody",type:"radio",req:1,opts:["Severally","Jointly"]},
   {id:"modeCsgl",label:"Mode of operation · CSGL",type:"radio",req:1,opts:["Severally","Jointly"],help:"Constituent Subsidiary General Ledger account, used to hold government securities."},
   {id:"modePcm",label:"Mode of operation · PCM",type:"radio",req:1,opts:["Severally","Jointly"],help:"Payment and cash management."},
-  {type:"derived",id:"sig",label:"Signatory rights",filter:p=>p.sig,empty:"No one is marked as an authorised signatory yet. Tick the box in Related parties.",cols:[
-   {k:"desig",label:"Designation",type:"select",opts:DESIG,req:1,w:170},
+  {type:"derived",id:"sig",label:"Signatory rights",filter:p=>p.sig||p.ops||p.acct,empty:"No one is marked as an authorised signatory yet. Tick the box in Related parties.",cols:[
    {k:"acct",label:"Account opening",type:"cb"},{k:"csgl",label:"CSGL",type:"cb"},{k:"pcm",label:"PCM",type:"cb"},{k:"web",label:"Web custody",type:"cb"},
-   {k:"maker",label:"Maker",type:"cb"},{k:"checker",label:"Checker",type:"cb"},{k:"auto",label:"Auto-authoriser",type:"cb"}]}]},
- {id:"ubo",title:"UBO / SMO details",desc:"Ownership and control for every party marked as UBO or SMO. Shareholding must not add up to more than 100%.",fields:[
+   {k:"maker",label:"Maker",type:"cb",en:r=>r.web,help:"Available only with web custody."},{k:"checker",label:"Checker",type:"cb",en:r=>r.web},{k:"auto",label:"Auto-authoriser",type:"cb",en:r=>r.web}]}]},
+ {id:"ubo",title:"UBO / SMO details",desc:"Ownership and control for every party marked as UBO or SMO. Stake % and stake type are required for ownership; method of control is required for control. Stakes must not add up to more than 100%.",fields:[
   {type:"derived",id:"uboD",label:"Beneficial ownership",filter:p=>p.ubo||p.smo,empty:"No party is marked as UBO or SMO yet.",total:"share",cols:[
    {k:"own",label:"Ownership",type:"cb"},{k:"ctl",label:"Control",type:"cb"},
-   {k:"share",label:"Share %",type:"num",w:90},{k:"ctlPct",label:"Control %",type:"num",w:90},
-   {k:"stake",label:"Stake type",type:"select",opts:["Direct","Indirect"],req:1,w:120},
-   {k:"alone",label:"Acting alone / together",req:1,w:170,help:"Whether this person exercises ownership or control alone or together with others."},
-   {k:"via",label:"Held through entity",w:150,help:"For indirect stakes: the intermediate entity through which the interest is held."},
-   {k:"method",label:"Method of control",w:150}]},
+   {k:"share",label:"Stake %",type:"num",w:90,reqIf:r=>r.own,valid:v=>+v>100||+v<0?"0–100":""},{k:"ctlPct",label:"Control %",type:"num",w:90},
+   {k:"stake",label:"Stake type",type:"select",opts:["Direct","Indirect"],reqIf:r=>r.own,en:r=>r.own,w:120},
+   {k:"alone",label:"Acting alone / together",w:170,help:"Whether this person acts alone or together with other natural persons (give their names)."},
+   {k:"via",label:"Entity through which stake is held",w:180,reqIf:r=>r.own&&r.stake==="Indirect",en:r=>r.own},
+   {k:"method",label:"Method of control",w:150,reqIf:r=>r.ctl,en:r=>r.ctl}]},
   {id:"family",label:"Do a few people from the same family hold beneficial ownership and control together?",type:"yn",req:1}]},
  {id:"uboFatca",title:"UBO / SMO FATCA details",desc:"Tax information for each controlling person.",fields:[
   {type:"derived",id:"uboF",label:"FATCA details",filter:p=>p.ubo||p.smo,empty:"No party is marked as UBO or SMO yet.",cols:[
@@ -657,25 +688,25 @@ const DOCS=[
 /* ---------- State ---------- */
 let uid=100;const nid=()=>"r"+(++uid);
 function sample(){
- const p=[{_id:"p1",type:"Individual",name:"Ananya Rao",sig:true,ops:true,acct:true,ubo:true},
+ const p=[{_id:"p1",type:"Individual",name:"Ananya Rao",desig:"Director",dir:true,sig:true,ops:true,acct:true,ubo:true},
   {_id:"p2",type:"Non-individual",name:"Kestrel Holdings Ltd",ubo:true},
-  {_id:"p3",type:"Individual",name:"Daniel Okafor",sig:true,acct:true,smo:true},
-  {_id:"p4",type:"Individual",name:"Mei Lin Tan",sig:true,ubo:true}];
+  {_id:"p3",type:"Individual",name:"Daniel Okafor",desig:"Director",dir:true,sig:true,acct:true,smo:true},
+  {_id:"p4",type:"Individual",name:"Mei Lin Tan",desig:"Manager",sig:true,ubo:true}];
  return {
   _sample:true,_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:newId(),_tab:{},
-  depository:"Depository A",invType:"Non-individual",product:"FPI",category:"Category II",subcat:"Charitable organisation",constitution:"Private limited company",appType:"New",appMode:"Investing",rm:"onboarding.rm@example.com",
+  depository:"Depository A",invType:"Non-individual",product:"FPI",category:"Category II",subcat:"Charitable organisation",regType:REG_TYPES[0],subProd:["PCM","CSGL"],constitution:"D - Private Limited Company",appType:"New",appMode:"Investing",_initBy:"Investor",rm:"onboarding.rm@example.com",
   invName:"Aster Ridge Charitable Foundation Ltd",incCountry:"Singapore",fundAdmin:"Harbourline Fund Services",mobile_cc:"+65",mobile:"8765 4306",regEmail:"ops@asterridge.example",
-  panHas:"No",panStatus:"Company",aoCode:"International Taxation Ward 1(1), Mumbai",aoArea:"DLC",aoType:"W",aoRange:"406",aoNo:"1",repHas:"Yes",repTitle:"Ms",repFirst:"Priya",repLast:"Menon",
+  panHas:"No",panStatus:"Company",aoCode:"DLCC035001",panTin:"T14FC0987K",repHas:"Yes",repTitle:"Ms",repFirst:"Priya",repLast:"Menon",
   rep_l1:"14 Marine Lines",rep_l2:"Churchgate",rep_pin:"400020",rep_city:"Mumbai",rep_state:"Maharashtra",rep_country:"India",repPoi:"Passport",repPoa:POA[0],
   listed:"No",svcFx:"No",svcGame:"No",svcLend:"No",
   abbr:"ARCF",otherNameHas:"No",doi:"2014-03-11",doc:"2014-06-01",poi_place:"Singapore",regNo:"201409876K",tin:"T14FC0987K",taxRes:"Singapore",kycPoi:POI[0],kycPoiNo:"201409876K",kycPoa:POA[0],
   reg_l1:"8 Marina View",reg_l2:"#21-04 Asia Square Tower 1",reg_pin:"018960",reg_city:"Singapore",reg_country:"Singapore",offSame:true,commAddr:"Registered",
   kycEmail:"ops@asterridge.example",website:"asterridge.example",telReg_cc:"+65",telReg:"6123 4500",
-  incSource:"Contributions / donations",grossInc:"78,40,000",netWorth:"4,06,78,700",asOn:"2026-03-31",occ:"Non-profit",pep:"No",pepRel:"No",
+  incSource:"Income from other sources",grossInc:"78,40,000",netWorth:"4,06,78,700",asOn:"2026-03-31",occ:"Charitable Organization",pep:"No",pepRel:"No",
   hasUbo:"Yes",partyList:p,
   modeAcct:"Severally",modeWeb:"Jointly",modeCsgl:"Severally",modePcm:"Jointly",
   sig:{p1:{desig:"Director",acct:true,csgl:true,pcm:true,web:true,maker:true},p3:{desig:"Director",acct:true,checker:true},p4:{desig:"Manager",web:true,checker:true,auto:true}},
-  uboD:{p1:{own:true,ctl:true,share:"40",ctlPct:"40",stake:"Direct",alone:"Alone"},p2:{own:true,share:"35",ctlPct:"35",stake:"Indirect",alone:"Together",via:"Kestrel Holdings Ltd",method:"Shareholding"},p3:{ctl:true,stake:"Direct",alone:"Alone",method:"Senior managing official"},p4:{own:true,share:"25",ctlPct:"25",stake:"Direct",alone:"Alone"}},
+  uboD:{p1:{own:true,ctl:true,share:"40",ctlPct:"40",stake:"Direct",alone:"Alone",method:"Shareholding and board seat"},p2:{own:true,share:"35",ctlPct:"35",stake:"Indirect",alone:"Together",via:"Kestrel Holdings Ltd",method:"Shareholding"},p3:{ctl:true,stake:"Direct",alone:"Alone",method:"Senior managing official"},p4:{own:true,share:"25",ctlPct:"25",stake:"Direct",alone:"Alone"}},
   family:"No",
   uboF:{p1:{tin:"S8712345D",tinC:"Singapore",cpt:CPT[0],occ:OCC[0]},p4:{tin:"S9023456G",tinC:"Singapore",cpt:CPT[0],occ:OCC[2]}},
   mim:"No",selfCert:"Yes",coName:"Rahul Iyer",coTitle:"Head of Compliance",coPhone_cc:"+65",coPhone:"6123 4511",coEmail:"compliance@asterridge.example",
@@ -708,39 +739,114 @@ const showErr={};
 /* ---------- Demo sign-in (no password; the chosen role is remembered on this device) ---------- */
 const USER_KEY="fpi-demo-user";
 let ME=null;try{ME=JSON.parse(localStorage.getItem(USER_KEY)||"null")}catch(e){}
+if(ME&&!["investor","rm","reviewer","maker","checker","bizchecker"].includes(ME.role))ME=null;
 const ROLE={
- client:{label:"Client",title:"Client",home:"My applications",ico:"CL",def:"Aster Ridge Foundation",
-  does:["Fill in the onboarding application","Upload signed forms and documents","Answer queries and resubmit","Track status until approval"]},
- ops:{label:"Ops",title:"Operations team",home:"Review queue",ico:"OP",def:"Priya · Ops",
-  does:["See every submitted application","Verify or reject each document","Raise queries to the client","Forward verified cases to DDP"]},
- ddp:{label:"DDP",title:"DDP",home:"Approvals",ico:"DP",def:"Arjun · DDP",
-  does:["See cases forwarded by ops","Approve and issue the FPI registration number","Return to ops or raise a query","Reject with a reason"]}};
-const EDITABLE=["In progress","Query raised"];
-const canEdit=()=>!!(ME&&S&&ME.role==="client"&&EDITABLE.includes(S._status));
+ investor:{label:"Investor",title:"Investor",portal:"External portal",home:"Applications",ico:"IN",def:"Aster Ridge Foundation",
+  does:["Register and start an FPI application","Fill in details and upload documents","Respond to remarks and resubmit","Track status until onboarding completes"]},
+ rm:{label:"RM",title:"Application RM",portal:"Internal portal",home:"Applications",ico:"RM",def:"Neha · RM",
+  does:["Start applications on behalf of investors","Fill in, upload and submit","Act on returned applications","Generate the welcome letter"]},
+ reviewer:{label:"Reviewer",title:"Business Reviewer",portal:"Internal portal",home:"Business review queue",ico:"BR",def:"Rohan · Reviewer",
+  does:["Review submitted applications and documents","Return for rectification with remarks","Approve to the DDP Ops Maker"]},
+ maker:{label:"Ops Maker",title:"DDP Ops Maker",portal:"Internal portal",home:"Ops Maker tray",ico:"OM",def:"Priya · Ops Maker",
+  does:["Check application against documents","Run Factiva, FAROS/PFT, AML, LEI and PAN checks","Record Google, FATF, IOSCO, registry, regulatory and SEBI checks","Forward to Ops Checker or return"]},
+ checker:{label:"Ops Checker",title:"DDP Ops Checker",portal:"Internal portal",home:"Ops Checker tray",ico:"OC",def:"Arjun · Ops Checker",
+  does:["Final review of checks and documents","Approve and send the SEBI fee email, return or reject","Submit on NSDL and fetch registration and PAN","Open downstream accounts"]},
+ bizchecker:{label:"Biz Checker",title:"Business Checker",portal:"Internal portal",home:"Investor registrations",ico:"BC",def:"Meera · Business Checker",
+  does:["See investor registrations and leads","Authorise registrations","Reject with a reason"]}};
+const OWNER_ROLES=["investor","rm"];
+const EDITABLE=["In progress","Returned"];
+const canEdit=()=>!!(ME&&S&&OWNER_ROLES.includes(ME.role)&&EDITABLE.includes(S._status));
 function renderWho(){$("#who").innerHTML=ME?`<span class="role">${ROLE[ME.role].label}</span><span>${esc(ME.name)}</span><button class="btn ghost sm" data-act="logout">Switch user</button>`:""}
 function renderLogin(){
  S=null;document.body.classList.add("home");renderWho();setSaved("");
- $("#main").innerHTML=`<div class="login"><div><h1>Sign in to the demo</h1><p>Pick a role to enter. There is no password or OTP in this demo; type any name you like. Use the same client name later to see that client's applications again.</p></div>
- <div class="roles">${Object.entries(ROLE).map(([k,r])=>`<form class="rcard" data-login="${k}"><span class="ico">${r.ico}</span><h2>${r.title}</h2><ul>${r.does.map(d=>`<li>${d}</li>`).join("")}</ul>
-  <div class="fld"><label for="login-${k}">${k==="client"?"Client / fund name":"Your name"}</label><input class="in" id="login-${k}" value="${esc(r.def)}" autocomplete="off"></div>
-  <button class="btn pri" type="submit">Enter as ${r.title}</button></form>`).join("")}</div>
- <div class="flow"><span>How a case moves:</span><b>Client submits</b>→<b>Ops reviews</b>→<b>Ops forwards</b>→<b>DDP approves</b><span>· queries can go back to the client at any review stage.</span></div>
- <div class="banner"><b>Demo environment.</b> Use made-up data only. Anyone with the link can sign in under any role.</div></div>`;
+ const card=([k,r])=>`<form class="rcard" data-login="${k}"><div class="rhead"><span class="ico">${r.ico}</span><div><h2>${r.title}</h2><small class="hint">${r.portal}</small></div></div><ul>${r.does.map(d=>`<li>${d}</li>`).join("")}</ul>
+  <div class="fld"><label for="login-${k}">${k==="investor"?"Investor / fund name":"Your name"}</label><input class="in" id="login-${k}" value="${esc(r.def)}" autocomplete="off"></div>
+  <button class="btn pri" type="submit">Enter as ${r.title}</button>${k==="investor"?`<button class="btn ghost sm" type="button" data-act="register">New investor? Register</button>`:""}</form>`;
+ $("#main").innerHTML=`<div class="login"><div><h1>Sign in to the demo</h1><p>Pick a role to enter. There is no password or OTP in this demo. Investors use the external portal; the other roles are internal users.</p></div>
+ <div class="roles">${Object.entries(ROLE).map(card).join("")}</div>
+ <div class="flow"><span>How an application moves:</span><b>Investor / RM submits</b>→<b>Business Reviewer</b>→<b>Ops Maker checks</b>→<b>Ops Checker approves</b>→<b>SEBI fee</b>→<b>NSDL registration</b>→<b>Accounts opened</b>→<b>Welcome letter</b></div>
+ <div class="banner"><b>Demo environment.</b> Use made-up data only. NSDL, PAN, LEI, AML and other integrations return simulated responses.</div></div>`;
 }
-function signIn(role,name){ME={role,name:name.trim()||ROLE[role].def};try{localStorage.setItem(USER_KEY,JSON.stringify(ME))}catch(e){}renderWho();homeFilter=null;showHome()}
+function signIn(role,name){ME={role,name:name.trim()||ROLE[role].def};try{localStorage.setItem(USER_KEY,JSON.stringify(ME))}catch(e){}renderWho();homeFilter=null;homeQ="";showHome()}
 async function logout(){if(S)await flush();ME=null;try{localStorage.removeItem(USER_KEY)}catch(e){}history.pushState({},"",location.pathname);renderLogin()}
 
-/* ---------- Status language ---------- */
-const STCLS={"In progress":"draft","Submitted":"s-info","Under review":"s-info","Query raised":"s-bad","Pending DDP approval":"s-info","Approved":"sub","Rejected":"s-bad"};
-const pill=s=>`<span class="pill ${STCLS[s]||"draft"}">${esc(s)}</span>`;
-function nextStep(st,role,reg){
- const T={
-  client:{"In progress":"Complete the form and submit it for review.","Submitted":"Submitted. Waiting for the operations team to pick it up.","Under review":"The operations team is reviewing your application.","Query raised":"Action needed: answer the open queries, then resubmit.","Pending DDP approval":"Verified by operations. Waiting for DDP approval.","Approved":"Approved. Your FPI registration number is "+(reg||"issued")+".","Rejected":"This application was rejected. The reason is in the history."},
-  ops:{"In progress":"The client is still filling this in.","Submitted":"New submission. Pick it up to start the review.","Under review":"Check each section and document, raise queries if needed, then forward to DDP.","Query raised":"Waiting for the client to answer.","Pending DDP approval":"With DDP for final approval.","Approved":"Approved by DDP ("+(reg||"")+").","Rejected":"Closed as rejected."},
-  ddp:{"In progress":"Still with the client.","Submitted":"With the operations team.","Under review":"With the operations team.","Query raised":"Waiting for the client to answer.","Pending DDP approval":"Verified by ops. Approve, return to ops or raise a query.","Approved":"Approved. Registration number "+(reg||"")+".","Rejected":"Closed as rejected."}};
- return (T[role]||T.client)[st]||"";
+/* BR-01: external registration. Details are saved as a lead as soon as they are typed, before submission. */
+let regId=null,regT;
+async function call(url,opt={}){
+ const r=await fetch(url,{...opt,headers:{"content-type":"application/json",...(opt.headers||{})}});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok){const e=new Error(j.error||`The server returned an error (${r.status}).`);e.status=r.status;throw e}
+ return j;
 }
-const when=iso=>{const t=new Date(iso.includes("T")?iso:iso.replace(" ","T")+"Z");const m=Math.round((Date.now()-t)/60000);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":t.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})};
+function renderRegister(){
+ regId=null;document.body.classList.add("home");renderWho();
+ $("#main").innerHTML=`<div class="login" style="max-width:640px"><div><h1>Investor registration</h1><p>Register as an FPI applicant or global custodian. A Business Checker reviews your request; once it is authorised you can sign in and start an application.</p></div>
+ <form class="card grid" id="regForm" style="grid-template-columns:minmax(0,1fr)">
+  <div class="fld"><span class="lbl">Registered user type<span class="req">*</span></span><div class="seg" role="radiogroup" aria-label="Registered user type">${["FPI Applicant","Global Custodian"].map((o,i)=>`<label><input type="radio" name="rt" id="reg-t${i}" value="${o}"${i===0?" checked":""}><span>${o}</span></label>`).join("")}</div></div>
+  <div class="fld"><label for="reg-name">Name of the user<span class="req">*</span></label><input class="in" id="reg-name" autocomplete="name"></div>
+  <div class="fld"><label for="reg-country">Country<span class="req">*</span></label><select class="sel" id="reg-country"><option value="">Select…</option>${CN.map(c=>`<option>${esc(c)}</option>`).join("")}</select></div>
+  <div class="fld"><label for="reg-phone">Phone number with country code<span class="req">*</span></label><div class="phone"><select class="sel" id="reg-cc" aria-label="Country code"><option value="">Code</option>${[...new Set(COUNTRIES.map(c=>c[1]))].map(c=>`<option>${c}</option>`).join("")}</select><input class="in mono" id="reg-phone" inputmode="tel"></div></div>
+  <div class="fld"><label for="reg-email">Email address<span class="req">*</span></label><input class="in" type="email" id="reg-email" autocomplete="email"></div>
+  <div class="msg" id="reg-msg" role="alert"></div>
+  <div class="dact" style="justify-content:flex-start"><button class="btn pri" type="submit">Submit for approval</button><button class="btn ghost" type="button" data-act="toLogin">Back to sign in</button></div>
+ </form></div>`;
+}
+function regData(submit){const g=id=>($("#"+id)||{}).value||"";const cc=g("reg-cc");return {id:regId,submit,user_type:(document.querySelector("[name=rt]:checked")||{}).value,name:g("reg-name").trim(),country:g("reg-country"),phone:(cc?cc+" ":"")+g("reg-phone").trim(),email:g("reg-email").trim()}}
+function saveLead(){clearTimeout(regT);regT=setTimeout(async()=>{const d=regData(false);if(!d.name&&!d.email)return;try{const r=await call("/api/registrations",{method:"POST",body:JSON.stringify(d)});regId=r.id}catch(e){}},800)}
+async function submitRegistration(){
+ clearTimeout(regT);const d=regData(true);const m=$("#reg-msg");
+ const miss=!d.name||!d.country||!$("#reg-phone").value.trim()||!d.email;
+ if(miss){m.textContent="Fill in all mandatory fields.";return}
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)){m.textContent="Enter a valid email address.";return}
+ try{const r=await call("/api/registrations",{method:"POST",body:JSON.stringify(d)});regId=r.id;
+  $("#main").innerHTML=`<div class="login" style="max-width:640px"><div class="done-banner"><span class="num done">✓</span><div><b>Registration submitted</b><div>Reference <span class="mono">${esc(r.id)}</span>. A Business Checker will review it. Once authorised, an activation link is sent to ${esc(d.email)} (simulated in this demo).</div></div></div><div><button class="btn sec" data-act="toLogin">Back to sign in</button></div></div>`;
+ }catch(e){m.textContent=e.message}
+}
+
+/* BR-02: Business Checker screen */
+let regs=[],regTab="Pending",regRej=null;
+async function showRegistrations(){
+ document.body.classList.add("home");setSaved("");
+ $("#main").innerHTML=`<div class="empty">Loading registrations…</div>`;
+ try{regs=(await call("/api/registrations")).registrations;homeErr=""}catch(e){homeErr=e.message}
+ renderRegistrations();
+}
+function renderRegistrations(){
+ const tabs=[["Pending","Authorise / reject"],["Authorised","Authorised"],["Rejected","Rejected"],["Lead","Leads (not submitted)"]];
+ const list=regs.filter(r=>r.status===regTab);
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>Investor registrations</h1><p>Review registration requests from the external portal. Leads are people who started registering but have not submitted yet.</p></div></div>
+ <div class="chipset" style="margin-bottom:14px">${tabs.map(([k,l])=>`<button class="chip${k===regTab?" on":""}" data-regtab="${k}">${l} · ${regs.filter(r=>r.status===k).length}</button>`).join("")}</div>
+ ${homeErr?`<div class="note" style="color:var(--danger)">${esc(homeErr)}</div>`:list.length?`<div class="tbl-wrap"><table><thead><tr><th>Reference</th><th>User type</th><th>Name</th><th>Country</th><th>Phone</th><th>Email</th><th>${regTab==="Pending"?"Action":regTab==="Rejected"?"Reason":"Updated"}</th></tr></thead><tbody>
+ ${list.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.user_type||"—")}</td><td>${esc(r.name||"—")}</td><td>${esc(r.country||"—")}</td><td class="mono">${esc(r.phone||"—")}</td><td>${esc(r.email||"—")}</td>
+  <td>${regTab==="Pending"?(regRej===r.id?`<div class="row" style="display:flex;gap:6px"><input class="in" id="rr-${esc(r.id)}" placeholder="Reason for rejection"><button class="btn pri sm" data-regdo="Rejected" data-id="${esc(r.id)}">Reject</button></div>`:`<div class="dact" style="justify-content:flex-start"><button class="btn pri sm" data-regdo="Authorised" data-id="${esc(r.id)}">Authorise</button><button class="btn sec sm" data-regrej="${esc(r.id)}">Reject</button></div>`):regTab==="Rejected"?esc(r.reason||""):`<span class="when">${when(r.updated_at)}</span>`}</td></tr>`).join("")}</tbody></table></div>`:`<div class="card empty">No registrations here.</div>`}`;
+}
+async function decideReg(id,decision){
+ const reason=decision==="Rejected"?($("#rr-"+id)||{}).value||"":"";
+ if(decision==="Rejected"&&!reason.trim()){toast("Enter the reason for rejection.");return}
+ try{await call(`/api/registrations/${encodeURIComponent(id)}/decision`,{method:"POST",body:JSON.stringify({decision,reason,user:ME.name})});regRej=null;
+  toast(decision==="Authorised"?"Registration authorised. Activation link sent (simulated).":"Registration rejected. The applicant is notified by email (simulated).");showRegistrations()}
+ catch(e){toast(e.message)}
+}
+
+/* ---------- Status language ---------- */
+const STCLS={"In progress":"draft","Returned":"s-bad","Business review":"s-info","Maker review":"s-info","Checker review":"s-info","Fee pending":"draft","Ready for NSDL":"s-info","NSDL submitted":"s-info","Registered":"sub","Accounts opened":"sub","Completed":"sub","Rejected":"s-bad","Cancelled":"draft"};
+const pill=s=>`<span class="pill ${STCLS[s]||"draft"}">${esc(s)}</span>`;
+const PENDING_WITH={"In progress":"Investor / RM","Returned":"Investor / RM","Business review":"Business Reviewer","Maker review":"Ops Maker","Checker review":"Ops Checker","Fee pending":"Ops Checker","Ready for NSDL":"Ops Checker","NSDL submitted":"Ops Checker","Registered":"Ops Checker","Accounts opened":"Application RM","Completed":"—","Rejected":"—","Cancelled":"—"};
+function nextStep(st,role,wf){
+ wf=wf||{};const mine=(PENDING_WITH[st]||"").includes(ROLE[role].title.replace("DDP ",""))||(OWNER_ROLES.includes(role)&&EDITABLE.includes(st))||(role==="rm"&&st==="Accounts opened");
+ const T={"In progress":"Complete the application and submit it for review.","Returned":"Returned for rectification. Respond to the remarks, correct the application and resubmit.",
+  "Business review":"With the Business Reviewer.","Maker review":"With the DDP Ops Maker for checks.","Checker review":"With the DDP Ops Checker for final review.",
+  "Fee pending":"Approved internally. SEBI registration fee email sent; waiting for the fee to be sighted.","Ready for NSDL":"Fee received. Ready to submit on NSDL.",
+  "NSDL submitted":"Submitted on NSDL"+(wf.nsdlRef?` (${wf.nsdlRef})`:"")+". Waiting for the registration certificate.",
+  "Registered":"Registered"+(wf.regNo?` (${wf.regNo})`:"")+". Downstream accounts to be opened.","Accounts opened":"All accounts opened. Welcome letter pending.",
+  "Completed":"Onboarding completed.","Rejected":"Rejected. The reason is in the history.","Cancelled":"Cancelled. The reason is in the history."};
+ const A={reviewer:{"Business review":"Review the application and documents, then approve to the Ops Maker or return with remarks."},
+  maker:{"Maker review":"Record every check, review documents, then forward to the Ops Checker or return."},
+  checker:{"Checker review":"Confirm the maker's checks and documents, then approve, return or reject.","Fee pending":"Mark the fee as received once it is sighted.","Ready for NSDL":"Submit the application on NSDL.","NSDL submitted":"Fetch the registration certificate and PAN.","Registered":"Initiate downstream account opening."},
+  rm:{"Accounts opened":"Generate the welcome letter to complete onboarding."}};
+ return (mine&&A[role]&&A[role][st])||T[st]||"";
+}
+const when=iso=>{if(!iso)return"";const t=new Date(iso.includes("T")?iso:iso.replace(" ","T")+"Z");const m=Math.round((Date.now()-t)/60000);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":t.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})};
 const stamp=iso=>new Date(iso).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 
 /* ---------- Cloud storage (Cloudflare D1 + KV via /api) ---------- */
@@ -763,102 +869,198 @@ async function flush(){
 }
 window.addEventListener("beforeunload",e=>{if(saveT&&$("#saved").textContent.startsWith("Saving")){flush();e.preventDefault()}});
 
-/* ---------- Home: one list per role ---------- */
+/* ---------- Home: BR-04 dashboard, one view per role ---------- */
+const ACTIVE=["In progress","Returned","Business review","Maker review","Checker review","Fee pending","Ready for NSDL","NSDL submitted","Registered","Accounts opened"];
 const HF={
- ops:[["action","Needs action",["Submitted","Under review"]],["client","Waiting on client",["Query raised"]],["ddp","With DDP",["Pending DDP approval"]],["closed","Closed",["Approved","Rejected"]],["draft","Drafts",["In progress"]],["all","All",null]],
- ddp:[["pending","Pending approval",["Pending DDP approval"]],["approved","Approved",["Approved"]],["rejected","Rejected",["Rejected"]],["all","All",null]]};
-let homeFilter=null;
+ investor:[["active","Active",ACTIVE],["action","Action needed",["In progress","Returned"]],["closed","Closed",["Completed","Rejected","Cancelled"]],["all","All",null]],
+ rm:[["active","Active",ACTIVE],["action","Action needed",["In progress","Returned","Accounts opened"]],["closed","Closed",["Completed","Rejected","Cancelled"]],["all","All",null]],
+ reviewer:[["queue","My queue",["Business review"]],["returned","Returned",["Returned"]],["ops","With DDP Ops",["Maker review","Checker review","Fee pending","Ready for NSDL","NSDL submitted","Registered","Accounts opened"]],["all","All",null]],
+ maker:[["queue","My tray",["Maker review"]],["checker","With Ops Checker",["Checker review"]],["returned","Returned",["Returned"]],["all","All",null]],
+ checker:[["queue","Review",["Checker review"]],["post","Fee · NSDL · accounts",["Fee pending","Ready for NSDL","NSDL submitted","Registered"]],["done","Accounts opened / completed",["Accounts opened","Completed"]],["rejected","Rejected",["Rejected"]],["all","All",null]]};
+let homeFilter=null,homeQ="",cancelId=null;
 async function showHome(push){
  if(!ME){renderLogin();return}
  if(S)await flush();
  S=null;document.body.classList.add("home");setSaved("");renderWho();
  if(push!==false)history.pushState({},"",location.pathname);
+ if(ME.role==="bizchecker"){showRegistrations();return}
  $("#main").innerHTML=`<div class="empty">Loading applications…</div>`;
- try{apps=(await api(ME.role==="client"?"?owner="+encodeURIComponent(ME.name):"")).apps;homeErr=""}catch(e){homeErr=e.message}
+ try{apps=(await api(ME.role==="investor"?"?owner="+encodeURIComponent(ME.name):"")).apps;homeErr=""}catch(e){homeErr=e.message}
  renderHome();
 }
-function renderHome(){
- const r=ME.role,fs=HF[r];
- if(fs&&!fs.some(f=>f[0]===homeFilter))homeFilter=fs[0][0];
- const f=fs&&fs.find(x=>x[0]===homeFilter);
- const list=f&&f[2]?apps.filter(a=>f[2].includes(a.status)):apps;
- const intro={client:"Your applications are saved in the cloud, so you can continue on any device.",ops:"Every client application, grouped by what needs your attention.",ddp:"Applications verified by operations and waiting for your decision."}[r];
- const canDel=a=>r==="ops"||(r==="client"&&a.status==="In progress");
- $("#main").innerHTML=`<div class="sec-head"><div><h1>${ROLE[r].home}</h1><p>${intro}</p></div>
- ${r==="client"?`<div class="dact"><button class="btn sec" data-act="newBlank">New blank application</button><button class="btn pri" data-act="newSample">New sample application</button></div>`:""}</div>
- ${fs?`<div class="chipset" style="margin-bottom:14px">${fs.map(([k,l,s])=>`<button class="chip${k===homeFilter?" on":""}" data-hf="${k}">${l} · ${s?apps.filter(a=>s.includes(a.status)).length:apps.length}</button>`).join("")}</div>`:""}
- ${homeErr?`<div class="note" style="color:var(--danger)">Could not load applications: ${esc(homeErr)} <button class="btn ghost sm" data-act="home">Try again</button></div>`:
- list.length?`<div class="alist"><div class="arow head"><span>Applicant</span><span>Progress</span><span>Status</span><span>Updated</span><span></span></div>
- ${list.map(a=>`<div class="arow"><div class="nm"><b>${esc(a.name||"Untitled applicant")}</b><small>${esc(a.id)}${r!=="client"&&a.owner?" · "+esc(a.owner):""}</small></div>
-  <div class="mini"><div class="bar"><i style="width:${a.progress}%"></i></div>${a.progress}%</div>
-  <div>${pill(a.status)}${a.reg_no?`<span class="nx mono">${esc(a.reg_no)}</span>`:""}</div>
-  <span class="when">${when(a.updated_at)}</span>
-  <div class="dact"><button class="btn ${r!=="client"&&nextStep(a.status,r).match(/Pick it up|Approve,/)?"pri":"sec"} sm" data-open="${esc(a.id)}">${r==="client"?(EDITABLE.includes(a.status)?"Continue":"View"):"Review"}</button>${canDel(a)?`<button class="icon-btn danger" data-act="delApp" data-id="${esc(a.id)}" aria-label="Delete ${esc(a.name||a.id)}" title="Delete">${trash}</button>`:""}</div></div>`).join("")}</div>`:
- `<div class="card empty">${r==="client"?"<b>No applications yet.</b><br>Start with a sample application to see a filled-in example, or a blank one to try it from scratch.":"Nothing here right now."}</div>`}
- <div class="banner" style="margin-top:16px"><b>Demo environment.</b> Use made-up data only.</div>`;
+const productOf=a=>{let s=[];try{s=JSON.parse(a.sub_prod||"[]")}catch(e){}return (a.product||"FPI")+(s.length?" · "+s.join(", "):"")};
+function homeRows(){
+ const fs=HF[ME.role];if(!fs.some(f=>f[0]===homeFilter))homeFilter=fs[0][0];
+ const f=fs.find(x=>x[0]===homeFilter);let L=f[2]?apps.filter(a=>f[2].includes(a.status)):apps;
+ if(homeQ){const q=homeQ.toLowerCase();L=L.filter(a=>[a.id,a.name,a.owner,a.country,a.status,productOf(a)].some(v=>String(v||"").toLowerCase().includes(q)))}
+ return L;
 }
-let wfOpen=null,wfForm=null,openRej=null;
+function renderHome(){
+ const r=ME.role,fs=HF[r],L=homeRows(),internal=r!=="investor",owner=OWNER_ROLES.includes(r);
+ const canCancel=a=>owner&&!["Completed","Rejected","Cancelled","NSDL submitted","Registered","Accounts opened"].includes(a.status);
+ const intro={investor:"A list of the applications under your purview.",rm:"All investor applications, including ones you started on an investor's behalf.",reviewer:"Applications submitted by investors and RMs, waiting for business review.",maker:"Applications approved by the Business Reviewer, waiting for maker checks.",checker:"Applications forwarded by the Ops Maker, and post-approval steps."}[r];
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>${ROLE[r].home}</h1><p>${intro}</p></div>
+ ${owner?`<div class="dact"><button class="btn pri" data-act="newApp">+ New application</button></div>`:""}</div>
+ <div class="doc-tools"><input class="in" id="homeQ" placeholder="Search by ID, investor, country or status" value="${esc(homeQ)}" aria-label="Search applications">
+ <div class="chipset">${fs.map(([k,l,s])=>`<button class="chip${k===homeFilter?" on":""}" data-hf="${k}">${l} · ${s?apps.filter(a=>s.includes(a.status)).length:apps.length}</button>`).join("")}</div>
+ <span class="sp" style="flex:1"></span><button class="btn sec sm" data-act="export" title="Download the table as a spreadsheet">Export</button></div>
+ ${homeErr?`<div class="note" style="color:var(--danger)">Could not load applications: ${esc(homeErr)} <button class="btn ghost sm" data-act="home">Try again</button></div>`:
+ !apps.length?`<div class="card empty">No applications found.${owner?" Start one with New application.":""}</div>`:
+ !L.length?`<div class="card empty">No matching records found.</div>`:
+ `<div class="tbl-wrap"><table class="apps"><thead><tr><th>Application ID</th><th>Investor name</th><th>Start date</th><th>Product type</th><th>Country</th><th>Investor type</th><th>Status</th><th>Initiated by</th>${internal?"<th>Pending with</th>":""}<th>Actions</th></tr></thead><tbody>
+ ${L.map(a=>`<tr><td class="mono">${esc(a.id)}</td><td><b>${esc(a.name||"Untitled")}</b>${internal&&a.owner&&a.owner!==a.name?`<div class="hint">${esc(a.owner)}</div>`:""}<div class="mini"><div class="bar"><i style="width:${a.progress}%"></i></div>${a.progress}%</div></td>
+  <td class="mono">${esc(fmtDate(a.start_date||String(a.created_at).slice(0,10)))}</td><td>${esc(productOf(a))}</td><td>${esc(a.country||"—")}</td><td>${esc(a.inv_type||"—")}</td>
+  <td>${pill(a.status)}${a.reg_no?`<span class="nx mono">${esc(a.reg_no)}</span>`:""}</td><td>${esc(a.init_by||"Investor")}</td>${internal?`<td>${esc(PENDING_WITH[a.status]||"—")}</td>`:""}
+  <td><div class="dact" style="justify-content:flex-start;flex-wrap:nowrap"><button class="btn ${nextStep(a.status,r).match(/^(Review|Record|Confirm|Mark|Submit|Fetch|Initiate|Generate|Complete the)/)?"pri":"sec"} sm" data-open="${esc(a.id)}">${owner&&EDITABLE.includes(a.status)?"Continue":"Open"}</button>
+  <button class="btn ghost sm" data-summary="${esc(a.id)}" title="Application summary">Summary</button>
+  ${canCancel(a)?`<button class="btn ghost sm" data-cancel="${esc(a.id)}">Cancel</button>`:""}${r==="rm"&&a.status==="In progress"?`<button class="icon-btn danger" data-act="delApp" data-id="${esc(a.id)}" aria-label="Delete draft" title="Delete draft">${trash}</button>`:""}</div>
+  ${cancelId===a.id?`<div class="rej-note" style="margin-top:6px;display:flex;gap:6px"><input class="in" id="cancel-reason" placeholder="Reason for cancellation"><button class="btn pri sm" data-act="cancelSend" data-id="${esc(a.id)}">Cancel application</button></div>`:""}</td></tr>`).join("")}
+ </tbody></table></div>`}
+ <div class="banner" style="margin-top:16px"><b>Demo environment.</b> Use made-up data only. Integrations return simulated responses.</div>`;
+}
+function exportApps(){
+ const L=homeRows(),cols=[["Application ID",a=>a.id],["Investor name",a=>a.name],["Start date",a=>a.start_date],["Product type",productOf],["Country",a=>a.country],["Investor type",a=>a.inv_type],["Status",a=>a.status],["Initiated by",a=>a.init_by||"Investor"],["Pending with",a=>PENDING_WITH[a.status]],["Registration no.",a=>a.reg_no]];
+ const q=v=>{v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+ const csv="﻿"+[cols.map(c=>c[0]).join(","),...L.map(a=>cols.map(c=>q(c[1](a))).join(","))].join("\r\n");
+ const u=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const el=document.createElement("a");el.href=u;el.download=`applications-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);
+ toast("Application data exported successfully.");
+}
+async function cancelApp(id){
+ const reason=($("#cancel-reason")||{}).value||"";
+ if(!reason.trim()){$("#cancel-reason").classList.add("bad");toast("Please enter the reason for cancellation.");return}
+ try{await api(`/${encodeURIComponent(id)}/actions`,{method:"POST",body:JSON.stringify({role:ME.role,user:ME.name,type:"cancel",text:reason})});cancelId=null;toast("Application cancelled successfully.");showHome(false)}
+ catch(e){toast(e.message)}
+}
+async function summaryOf(id){
+ const w=window.open("","_blank");if(!w){toast("Allow pop-ups for this site to view the summary.");return}
+ w.document.write("Loading application summary…");
+ try{const {data}=await api("/"+encodeURIComponent(id));const prev=S;S=data;openSummary("Application summary",w);S=prev;toast("Application summary displayed successfully.")}
+ catch(e){w.close();toast(e.message)}
+}
+
+/* ---------- 4.2 Application Basic Information pop-up ---------- */
+const BASIC=[
+ {id:"depository",label:"Depository",type:"radio",opts:["Depository A","Depository B"]},
+ {id:"invType",label:"Investor type",type:"radio",opts:["Non-individual","Individual"]},
+ {id:"regType",label:"Registration type",type:"radio",stack:1,opts:REG_TYPES,help:"With PAN: you also apply for a PAN through this application. Without PAN: you already hold a PAN."},
+ {id:"subProd",label:"Sub-product type",type:"checks",opts:["PCM","CSGL","VRR"],opt:1},
+ {id:"category",label:"Category",type:"radio",opts:["Category I","Category II"]},
+ {id:"subcat",label:"Sub-category",type:"select",opts:s=>SUBCAT[s.category]||[]},
+ {id:"constitution",label:"Constitution type",type:"select",opts:CONSTITUTION},
+ {id:"appType",label:"Application type",type:"radio",opts:["New","Transition"]},
+ {id:"appMode",label:"Application mode",type:"radio",opts:["Investing","Non-investing"]}];
+let NB=null;
+function openBasic(){
+ NB={depository:"Depository A",invType:"Non-individual",regType:REG_TYPES[0],subProd:["PCM","CSGL"],category:"Category II",subcat:"",constitution:"",appType:"New",appMode:"Investing",_owner:ME.role==="investor"?ME.name:"",_sample:true};
+ renderBasic();$("#basicDlg").showModal();
+}
+function renderBasic(err){
+ const prev=S;S=NB;
+ const html=BASIC.map(f=>{const e=err&&!f.opt&&isEmpty(NB[f.id]);return `<div class="fld${f.stack||f.type==="checks"?" full":""}${e?" err":""}"><span class="lbl">${f.label}${f.opt?'<span class="opt">(optional)</span>':'<span class="req">*</span>'}${tip(f.help)}</span>${ctl(f)}${e?'<div class="msg">This field is required</div>':""}</div>`}).join("");
+ S=prev;
+ $("#basicBody").innerHTML=`${ME.role==="rm"?`<div class="fld full${err&&!NB._owner?" err":""}"><label for="nb-owner">Investor name (application is started on their behalf)<span class="req">*</span></label><input class="in" id="nb-owner" value="${esc(NB._owner)}">${err&&!NB._owner?'<div class="msg">This field is required</div>':""}</div>`:""}
+ <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">${html}</div>
+ <label class="ck" style="margin-top:12px"><input type="checkbox" id="nb-sample"${NB._sample?" checked":""}> Pre-fill the remaining sections with sample data (demo)</label>`;
+}
+async function proceedBasic(){
+ const miss=BASIC.some(f=>!f.opt&&isEmpty(NB[f.id]))||(ME.role==="rm"&&!NB._owner.trim());
+ if(miss){renderBasic(true);return}
+ const base=NB._sample?sample():blank();const {_sample,_owner,...vals}=NB;
+ const data={...base,...vals,_sample:!!_sample,panHas:vals.regType===REG_TYPES[1]?"Yes":"No"};
+ if(!_sample)data.invName=ME.role==="investor"?ME.name:_owner;
+ $("#basicDlg").close();
+ try{await api("",{method:"POST",body:JSON.stringify({data,owner:_owner||ME.name,role:ME.role,user:ME.name,progress:0})});await openApp(data._id)}
+ catch(e){toast("Could not create the application: "+e.message)}
+}
+
+let wfOpen=null,wfForm=null,openRej=null,checkNote={};
 async function openApp(id,push){
  if(!ME){renderLogin();return}
  $("#main").innerHTML=`<div class="empty">Opening ${esc(id)}…</div>`;
  try{const {data}=await api("/"+encodeURIComponent(id));
-  if(ME.role==="client"&&data._owner&&data._owner!==ME.name)throw new Error("This application belongs to another client.");
+  if(ME.role==="investor"&&data._owner&&data._owner!==ME.name)throw new Error("This application belongs to another investor.");
   S=data;S._tab=S._tab||{};S.docs=S.docs||{};
   const p=S._pos;cur=p&&STEPS[p.st]&&STEPS[p.st].sections[p.se]?p:{st:0,se:0};
-  if(ME.role!=="client")cur={st:0,se:0};
+  if(!OWNER_ROLES.includes(ME.role))cur={st:0,se:0};
   for(const k in showErr)delete showErr[k];
-  wfOpen=null;wfForm=null;openRej=null;
+  wfOpen=null;wfForm=null;openRej=null;checkNote={};
   document.body.classList.remove("home");renderWho();setSaved(canEdit()?"Saved to cloud":"View only");
   if(push!==false)history.pushState({},"","?app="+encodeURIComponent(id));
   renderMain();window.scrollTo(0,0);
  }catch(e){S=null;homeErr="";await showHome(false);toast(e.message)}
 }
-async function createApp(data){
- try{await api("",{method:"POST",body:JSON.stringify({data,owner:ME.name,progress:0})});await openApp(data._id)}
- catch(e){toast("Could not create the application: "+e.message)}
-}
 async function doAct(type,extra={}){
  try{
-  if(ME.role==="client")await flush();
+  if(OWNER_ROLES.includes(ME.role))await flush();
   const {data}=await api(`/${encodeURIComponent(S._id)}/actions`,{method:"POST",body:JSON.stringify({role:ME.role,user:ME.name,type,...extra})});
   S={...data,_tab:S._tab||{}};S.docs=S.docs||{};wfForm=null;openRej=null;
   setSaved(canEdit()?"Saved to cloud":"View only");renderMain(true);
-  toast({submit:"Application submitted",reply:"Reply sent",query:"Query sent to the client",resolve:"Query closed",start:"Picked up for review",doc:"Document updated",forward:"Forwarded to DDP",reject:"Application rejected",approve:"Approved · "+((S._wf||{}).regNo||""),return:"Returned to ops"}[type]||"Done");
+  toast({submit:"Application submitted for review",reply:"Response sent",return:"Returned for rectification",resolve:"Remark closed",doc:"Document updated",approve:ME.role==="checker"?"Approved · SEBI fee email sent (simulated)":"Approved and sent to the Ops Maker",forward:"Forwarded to the Ops Checker",reject:"Application rejected",check:"Check recorded",runcheck:"Check completed (simulated API)",fee:"Fee marked as received",nsdl:"Submitted on NSDL (simulated)",fetchreg:"Registration certificate and PAN retrieved (simulated)",accounts:"Accounts opened (simulated)",welcome:"Onboarding completed"}[type]||"Done");
+  if(type==="welcome")welcomeLetter();
  }catch(e){toast(e.message)}
 }
 
 /* ---------- Workflow panel shown above every section ---------- */
+const CHECK_LIST=[["factiva","Factiva (adverse media)","api"],["faros","FAROS / PFT","api"],["aml","AML screening","api"],["pan","PAN validation (NSDL)","api"],["lei","LEI validation (GLEIF) · optional","api"],["google","Google search","manual"],["fatf","FATF","manual"],["iosco","IOSCO","manual"],["registry","Registry","manual"],["regulatory","Regulatory","manual"],["sebi","SEBI","manual"]];
+function checksHTML(wf,edit){
+ const c=wf.checks||{},done=CHECK_LIST.filter(([k])=>c[k]).length;
+ return `<div><h3>Prescribed checks · ${done}/${CHECK_LIST.length}</h3><div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Method</th><th>Result</th><th style="min-width:220px">Remark</th>${edit?"<th>Record</th>":"<th>By</th>"}</tr></thead><tbody>
+ ${CHECK_LIST.map(([k,l,m])=>{const r=c[k];return `<tr><td><b>${l}</b></td><td>${m==="api"?"API":"Manual"}</td><td>${r?`<span class="st ${r.s==="Pass"?"ver":r.s==="Fail"?"rej":"none"}">${r.s}</span>`:'<span class="st none">Pending</span>'}</td>
+  <td>${edit&&m==="manual"?`<input class="in" id="cn-${k}" placeholder="Remark (required for Fail)" value="${esc(checkNote[k]??(r&&r.note)??"")}">`:`<span class="hint">${esc(r&&r.note||"")}</span>`}</td>
+  <td>${edit?(m==="api"?`<button class="btn sec sm" data-check="${k}" data-run="1">${r?"Run again":"Run check"}</button>`:`<div class="dact" style="justify-content:flex-start;flex-wrap:nowrap">${["Pass","NA","Fail"].map(s=>`<button class="btn ${r&&r.s===s?"pri":"sec"} sm" data-check="${k}" data-s="${s}">${s}</button>`).join("")}</div>`):`<span class="hint">${esc(r?r.by:"")}</span>`}</td></tr>`}).join("")}
+ </tbody></table></div></div>`;
+}
 function wfHTML(){
  const wf=S._wf||{events:[],queries:[],docReview:{}},st=S._status,r=ME.role;
  const openQ=wf.queries.filter(q=>q.status!=="resolved");
- const needsClient=wf.queries.filter(q=>q.status==="open").length;
- if(wfOpen===null)wfOpen=r!=="client"||st==="Query raised"||needsClient>0;
+ const needsOwner=wf.queries.filter(q=>q.status==="open").length;
+ const internal=!OWNER_ROLES.includes(r)||r==="rm";
+ if(wfOpen===null)wfOpen=!OWNER_ROLES.includes(r)||st==="Returned"||needsOwner>0||st==="Accounts opened";
  const b=(act,label,cls="sec")=>`<button class="btn ${cls} sm" data-act="${act}">${label}</button>`;
  let acts="";
- if(r==="ops"){
-  if(st==="Submitted")acts+=b("wf-start","Pick up for review","pri");
-  if(st==="Under review")acts+=b("wf-forward","Verify & forward to DDP","pri");
-  if(["Submitted","Under review"].includes(st))acts+=b("wf-query","Raise query to client")+b("wf-reject","Reject");
+ if(OWNER_ROLES.includes(r)&&EDITABLE.includes(st))acts+=`<button class="btn pri sm" data-go="${STEPS.length-1}:0">${st==="Returned"?"Review & resubmit":"Review & submit"}</button>`;
+ if(r==="reviewer"&&st==="Business review")acts+=b("wf-approve","Approve & send to Ops Maker","pri")+b("wf-return","Return for rectification");
+ if(r==="maker"&&st==="Maker review")acts+=b("wf-forward","Forward to Ops Checker","pri")+b("wf-return","Return for rectification");
+ if(r==="checker"){
+  if(st==="Checker review")acts+=b("wf-approve","Approve & send SEBI fee email","pri")+b("wf-return","Return for rectification")+b("wf-reject","Reject");
+  if(st==="Fee pending")acts+=b("wf-fee","Mark SEBI fee as received","pri");
+  if(st==="Ready for NSDL")acts+=b("wf-nsdl","Submit on NSDL","pri");
+  if(st==="NSDL submitted")acts+=b("wf-fetchreg","Fetch registration certificate & PAN","pri");
+  if(st==="Registered")acts+=b("wf-accounts","Initiate account opening","pri");
  }
- if(r==="ddp"&&st==="Pending DDP approval")acts+=b("wf-approve","Approve & issue registration no.","pri")+b("wf-return","Return to ops")+b("wf-query","Raise query to client")+b("wf-reject","Reject");
- if(r==="client"&&EDITABLE.includes(st))acts+=`<button class="btn pri sm" data-go="${STEPS.length-1}:0">${st==="Query raised"?"Review & resubmit":"Review & submit"}</button>`;
+ if(r==="rm"&&st==="Accounts opened")acts+=b("wf-welcome","Generate welcome letter & complete","pri");
+ if(st==="Completed")acts+=b("wf-letter","View welcome letter");
  const secOpts=STEPS.slice(0,-1).flatMap(s=>s.sections.map(x=>s.title+" · "+x.title));
- const compose=wfForm?`<div class="compose"><label class="lbl" for="wf-text">${{query:"Query for the client",reject:"Reason for rejection",return:"What should ops check again?"}[wfForm]}</label>
-  ${wfForm==="query"?`<div class="row"><select class="sel" id="wf-sec" aria-label="Related section"><option value="">Whole application</option>${secOpts.map(o=>`<option>${esc(o)}</option>`).join("")}</select></div>`:""}
-  <textarea class="in" id="wf-text" placeholder="${wfForm==="query"?"e.g. Please upload a certified copy of the trust deed":"Explain briefly"}"></textarea>
-  <div class="row"><button class="btn pri sm" data-act="wf-send">${{query:"Send query",reject:"Confirm rejection",return:"Return to ops"}[wfForm]}</button><button class="btn ghost sm" data-act="wf-cancel">Cancel</button></div></div>`:"";
+ const compose=wfForm?`<div class="compose"><label class="lbl" for="wf-text">${{return:"Remarks for the investor / RM",reject:"Reason for rejection"}[wfForm]}</label>
+  ${wfForm==="return"?`<div class="row"><select class="sel" id="wf-sec" aria-label="Related section"><option value="">Whole application</option>${secOpts.map(o=>`<option>${esc(o)}</option>`).join("")}</select></div>`:""}
+  <textarea class="in" id="wf-text" placeholder="${wfForm==="return"?"e.g. Upload a certified copy of the trust deed":"Explain briefly"}"></textarea>
+  <div class="row"><button class="btn pri sm" data-act="wf-send">${{return:"Return for rectification",reject:"Confirm rejection"}[wfForm]}</button><button class="btn ghost sm" data-act="wf-cancel">Cancel</button></div></div>`:"";
  const qs=wf.queries.slice().reverse().map(q=>{
-  const lbl={open:"Waiting for client",answered:"Answered",resolved:"Closed"}[q.status];
-  return `<div class="qi${q.status==="open"?" open":""}"><div class="meta"><b>${esc(q.by)}</b><span>${ROLE[q.from].label}</span><span>· ${stamp(q.at)}</span>${q.section?`<span>· ${esc(q.section)}</span>`:""}<span class="st ${q.status==="resolved"?"ver":q.status==="open"?"rej":"gen"}">${lbl}</span></div>
+  const lbl={open:"Awaiting response",answered:"Responded",resolved:"Closed"}[q.status];
+  return `<div class="qi${q.status==="open"?" open":""}"><div class="meta"><b>${esc(q.by)}</b><span>${ROLE[q.from]?ROLE[q.from].title:q.from}</span><span>· ${stamp(q.at)}</span>${q.section?`<span>· ${esc(q.section)}</span>`:""}<span class="st ${q.status==="resolved"?"ver":q.status==="open"?"rej":"gen"}">${lbl}</span></div>
   <div>${esc(q.text)}</div>
   ${q.reply?`<div class="ans"><div class="meta"><b>${esc(q.repliedBy)}</b><span>· ${stamp(q.repliedAt)}</span></div>${esc(q.reply)}</div>`:""}
-  ${r==="client"&&q.status==="open"&&EDITABLE.includes(st)?`<div class="row"><input class="in" id="reply-${q.id}" placeholder="Type your answer"><button class="btn pri sm" data-act="wf-reply" data-q="${q.id}">Send answer</button></div>`:""}
-  ${r!=="client"&&q.status!=="resolved"?`<div class="row"><button class="btn sec sm" data-act="wf-resolve" data-q="${q.id}">${q.status==="answered"?"Accept answer & close":"Withdraw query"}</button></div>`:""}</div>`}).join("");
+  ${OWNER_ROLES.includes(r)&&q.status==="open"&&EDITABLE.includes(st)?`<div class="row"><input class="in" id="reply-${q.id}" placeholder="Describe what you corrected"><button class="btn pri sm" data-act="wf-reply" data-q="${q.id}">Send response</button></div>`:""}
+  ${["reviewer","maker","checker"].includes(r)&&q.status==="answered"?`<div class="row"><button class="btn sec sm" data-act="wf-resolve" data-q="${q.id}">Accept & close</button></div>`:""}</div>`}).join("");
+ const showChecks=["maker","checker","reviewer"].includes(r)&&(st==="Maker review"||Object.keys(wf.checks||{}).length);
+ const editChecks=(r==="maker"&&st==="Maker review")||(r==="checker"&&st==="Checker review");
+ const reg=wf.nsdlRef||wf.regNo||(wf.accounts||[]).length?`<div><h3>Registration & accounts</h3><dl class="kv">${wf.nsdlRef?`<dt>NSDL reference</dt><dd class="mono">${esc(wf.nsdlRef)}</dd>`:""}${wf.regNo?`<dt>FPI registration no.</dt><dd class="mono">${esc(wf.regNo)}</dd><dt>PAN</dt><dd class="mono">${esc(wf.pan)}</dd>`:""}${(wf.accounts||[]).map(a=>`<dt>${esc(a.name)}</dt><dd class="mono">${esc(a.ref)}</dd>`).join("")}</dl></div>`:"";
  const ev=wf.events.slice().reverse();
- return `<details class="wf"${wfOpen?" open":""}><summary>${pill(st)}<span class="wf-next">${esc(nextStep(st,r,wf.regNo))}</span>${wf.regNo?`<span class="regno">${esc(wf.regNo)}</span>`:""}${openQ.length?`<span class="st rej">${openQ.length} open quer${openQ.length>1?"ies":"y"}</span>`:""}</summary>
- <div class="wf-body">${acts?`<div class="wf-acts">${acts}</div>`:""}${compose}
- ${wf.queries.length?`<div><h3>Queries</h3><div class="qlist">${qs}</div></div>`:""}
- <details${r!=="client"?" open":""}><summary>History · ${ev.length} event${ev.length===1?"":"s"}</summary><ol class="tl">${ev.map(e=>`<li><time>${stamp(e.at)}</time><div><b>${esc(e.what)}</b> <small>by ${esc(e.by)} (${ROLE[e.role]?ROLE[e.role].label:e.role})</small>${e.note?`<div class="hint">${esc(e.note)}</div>`:""}</div></li>`).join("")}</ol></details></div></details>`;
+ return `<details class="wf"${wfOpen?" open":""}><summary>${pill(st)}<span class="wf-next">${esc(nextStep(st,r,wf))}</span>${internal&&PENDING_WITH[st]&&PENDING_WITH[st]!=="—"?`<span class="hint">Pending with: <b>${PENDING_WITH[st]}</b></span>`:""}${wf.regNo?`<span class="regno">${esc(wf.regNo)}</span>`:""}${openQ.length?`<span class="st rej">${openQ.length} open remark${openQ.length>1?"s":""}</span>`:""}</summary>
+ <div class="wf-body">${acts?`<div class="wf-acts">${acts}</div>`:""}${compose}${reg}
+ ${showChecks?checksHTML(wf,editChecks):""}
+ ${wf.queries.length?`<div><h3>Remarks</h3><div class="qlist">${qs}</div></div>`:""}
+ <details${!OWNER_ROLES.includes(r)?" open":""}><summary>Audit trail · ${ev.length} event${ev.length===1?"":"s"}</summary><ol class="tl">${ev.map(e=>`<li><time>${stamp(e.at)}</time><div><b>${esc(e.what)}</b> <small>by ${esc(e.by)} (${ROLE[e.role]?ROLE[e.role].title:e.role})</small>${e.note?`<div class="hint">${esc(e.note)}</div>`:""}</div></li>`).join("")}</ol></details></div></details>`;
+}
+function welcomeLetter(){
+ const wf=S._wf||{},w=window.open("","_blank");if(!w){toast("Allow pop-ups for this site to open the welcome letter.");return}
+ const addr=["reg_l1","reg_l2","reg_l3","reg_city","reg_pin","reg_country"].map(k=>S[k]).filter(Boolean).map(esc).join(", ");
+ w.document.write(`<!doctype html><meta charset="utf-8"><title>Welcome letter · ${esc(S._id)}</title><style>body{font:15px/1.6 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#241815}h1{font-size:20px;color:#AE282E}table{border-collapse:collapse;width:100%;margin:16px 0}td{border:1px solid #E7DFDB;padding:6px 10px}td:first-child{font-weight:600;width:45%;background:#FAF7F5}.m{font-family:monospace}</style>
+ <p>${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"})}</p><p><b>${esc(S.invName||"")}</b><br>${addr}</p>
+ <h1>Welcome aboard</h1><p>We are pleased to confirm that your onboarding as a Foreign Portfolio Investor is complete. Your registration and account details are below.</p>
+ <table><tr><td>Application ID</td><td class="m">${esc(S._id)}</td></tr><tr><td>FPI registration no.</td><td class="m">${esc(wf.regNo||"")}</td></tr><tr><td>PAN</td><td class="m">${esc(wf.pan||"")}</td></tr>${(wf.accounts||[]).map(a=>`<tr><td>${esc(a.name)}</td><td class="m">${esc(a.ref)}</td></tr>`).join("")}</table>
+ <p>Your relationship manager will contact you with service details. For any queries, reply to your relationship manager's email.</p><p>Yours sincerely,<br>Custody Services</p><p style="color:#6B5D58;font-size:12px">Demo document generated from simulated data.</p>`);
+ w.document.close();
 }
 function lockForm(){
  main.querySelectorAll(".card input,.card select,.card textarea").forEach(e=>{e.disabled=true});
@@ -910,6 +1112,10 @@ const tip=t=>t?` <span class="tip" tabindex="0" data-tip="${esc(t)}" aria-label=
 const optsOf=f=>typeof f.opts==="function"?f.opts(S):f.opts;
 
 /* Completion of a section: count required, visible values */
+// Field rules: required, conditionally required (reqIf), format checks (valid), and email format.
+const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function fieldInvalid(f){const v=S[f.id];if(isEmpty(v))return "";if(f.valid)return f.valid(v,S);if(f.type==="email"&&!EMAIL.test(v))return "Enter a valid email address.";return ""}
+function cellOk(c,r){const v=r[c.k];if(c.en&&!c.en(r))return true;if((c.req||(c.reqIf&&c.reqIf(r)))&&isEmpty(v))return false;return !(c.valid&&!isEmpty(v)&&c.valid(v))}
 function status(sec){
  if(sec.custom==="docs"){const d=docList().filter(x=>x.need);const done=d.filter(x=>x.s==="up").length;return {req:d.length,done,miss:d.filter(x=>x.s!=="up").map(x=>x.name)}}
  if(sec.custom==="review")return {req:0,done:0,miss:[]};
@@ -918,22 +1124,25 @@ function status(sec){
   if(!vis(f))continue;
   if(f.type==="table"){
    const rows=S[f.id]||[];req++;
-   const ok=rows.length>=(f.min||0)&&rows.every(r=>f.cols.every(c=>!c.req||!isEmpty(r[c.k])));
+   const ok=rows.length>=(f.min||0)&&rows.every(r=>f.cols.every(c=>cellOk(c,r)));
    if(ok)done++;else miss.push(f.label);continue;
   }
   if(f.type==="derived"){
    const ps=parties().filter(f.filter),store=S[f.id]||{};
-   for(const p of ps){req++;const r=store[p._id]||{};if(f.cols.every(c=>!c.req||!isEmpty(r[c.k])))done++;else miss.push(f.label+" · "+p.name)}
-   if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);if(t>100){req++;miss.push("Shareholding adds up to more than 100%")}}
+   for(const p of ps){req++;const r=store[p._id]||{};if(f.cols.every(c=>cellOk(c,r)))done++;else miss.push(f.label+" · "+p.name)}
+   if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);if(t>100){req++;miss.push("Stakes add up to more than 100%")}}
    continue;
   }
-  if(!f.req||!f.id)continue;
+  if(!f.id||f.type==="ro")continue;
+  const bad=!isEmpty(S[f.id])&&fieldInvalid(f);
+  if(bad){req++;miss.push(f.label+" (invalid)");continue}
+  if(!f.req)continue;
   req++;if(!isEmpty(S[f.id]))done++;else miss.push(f.label);
  }
  return {req,done,miss};
 }
 const stateOf=st=>st.req===0?"done":st.done>=st.req&&!st.miss.length?"done":st.done===0?"todo":"part";
-function totals(){let r=0,d=0;STEPS.forEach(s=>s.sections.forEach(x=>{const t=status(x);r+=t.req;d+=Math.min(t.done,t.req)}));return {r,d,pct:r?Math.round(d/r*100):0}}
+function totals(){let r=0,d=0;STEPS.forEach(s=>s.sections.forEach(x=>{const t=status(x);r+=t.req;d+=Math.min(t.done,t.req)}));return {r,d,pct:r?Math.floor(d/r*100):0}}
 
 /* ---------- Render: header & rail ---------- */
 function renderFacts(){
@@ -980,7 +1189,8 @@ function field(f,sid){
  if(f.type==="note")return `<p class="note full ${f.cls||""}">${esc(f.label)}</p>`;
  if(f.type==="table")return tableHTML(f,sid);
  if(f.type==="derived")return derivedHTML(f,sid);
- const err=showErr[sid]&&f.req&&isEmpty(S[f.id]);
+ const inv=fieldInvalid(f);
+ const err=(showErr[sid]&&f.req&&isEmpty(S[f.id]))||!!inv;
  if(f.type==="yn"||f.type==="ynna")
   return `<div class="q full${err?" err":""}" id="f-${f.id}"><div class="qt">${esc(f.label)}${f.req?' <span class="req">*</span>':""}${tip(f.help)}</div>${seg(f,f.type==="yn"?YN:YNNA)}</div>`;
  if(f.type==="check")
@@ -988,11 +1198,14 @@ function field(f,sid){
  const span=f.span==="full"?" full":f.span===2?" s2":"";
  const lab=f.type==="radio"||f.type==="checks"?`<span class="lbl">`:`<label for="i-${f.id}${f.type==="phone"?"":""}">`;
  const labEnd=f.type==="radio"||f.type==="checks"?`</span>`:`</label>`;
- return `<div class="fld${span}${err?" err":""}" id="f-${f.id}">${lab}${esc(f.label)}${f.req?'<span class="req">*</span>':f.opt?'<span class="opt">(optional)</span>':""}${tip(f.help)}${labEnd}${ctl(f)}${err?'<div class="msg">This field is required</div>':""}</div>`;
+ return `<div class="fld${span}${err?" err":""}" id="f-${f.id}">${lab}${esc(f.label)}${f.req?'<span class="req">*</span>':f.opt?'<span class="opt">(optional)</span>':""}${tip(f.help)}${labEnd}${ctl(f)}${err?`<div class="msg">${esc(inv||"This field is required")}</div>`:""}</div>`;
 }
-function cell(c,val,attrs,err){
+function cell(c,val,attrs,err,row){
+ row=row||{};const off=c.en&&!c.en(row);
+ if(off){val=c.type==="cb"?false:"";attrs+=" disabled"}
  if(c.type==="cb")return `<td class="c"><input type="checkbox" ${attrs}${val?" checked":""} aria-label="${esc(c.label)}"></td>`;
- const bad=err&&c.req&&isEmpty(val)?' style="border-color:var(--danger)"':"";
+ const badNow=!off&&((err&&(c.req||(c.reqIf&&c.reqIf(row)))&&isEmpty(val))||(c.valid&&!isEmpty(val)&&c.valid(val)));
+ const bad=badNow?' style="border-color:var(--danger)"':"";
  if(c.type==="select")return `<td><select class="sel" ${attrs}${bad} aria-label="${esc(c.label)}"><option value="">Select…</option>${c.opts.map(o=>`<option${o===val?" selected":""}>${esc(o)}</option>`).join("")}</select></td>`;
  const t=c.type==="date"?"date":"text";
  return `<td><input class="in${c.type==="num"?" mono":""}" type="${t}" ${attrs}${bad} value="${esc(val)}" aria-label="${esc(c.label)}"${c.type==="num"?' inputmode="decimal"':""}></td>`;
@@ -1002,15 +1215,15 @@ function tableHTML(f,sid){
  const rows=S[f.id]||(S[f.id]=[]);const err=showErr[sid];
  const missing=err&&rows.length<(f.min||0);
  return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th class="n">#</th>${f.cols.map(th).join("")}<th></th></tr></thead><tbody>
- ${rows.length?rows.map((r,i)=>`<tr><td class="n">${i+1}</td>${f.cols.map(c=>cell(c,r[c.k],`data-t="${f.id}" data-r="${i}" data-c="${c.k}"`,err)).join("")}<td class="c"><button class="icon-btn" data-act="del" data-t="${f.id}" data-r="${i}" aria-label="Remove row ${i+1}">${trash}</button></td></tr>`).join(""):`<tr><td colspan="${f.cols.length+2}" class="empty">No rows yet.</td></tr>`}
+ ${rows.length?rows.map((r,i)=>`<tr><td class="n">${i+1}</td>${f.cols.map(c=>cell(c,r[c.k],`data-t="${f.id}" data-r="${i}" data-c="${c.k}"`,err,r)).join("")}<td class="c"><button class="icon-btn" data-act="del" data-t="${f.id}" data-r="${i}" aria-label="Remove row ${i+1}">${trash}</button></td></tr>`).join(""):`<tr><td colspan="${f.cols.length+2}" class="empty">No rows yet.</td></tr>`}
  </tbody></table></div><div class="tbl-foot"><button class="btn sec sm" data-act="add" data-t="${f.id}">+ ${esc(f.add||"Add row")}</button>${missing?'<span class="msg">Add at least one row</span>':""}</div></div>`;
 }
 function derivedHTML(f,sid){
  const ps=parties().filter(f.filter),store=S[f.id]||(S[f.id]={});const err=showErr[sid];
  let foot="";
- if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);foot=`<span class="total${t>100?" bad":""}" id="tot-${f.id}">Total shareholding: ${t}%${t>100?" · exceeds 100%":""}</span>`}
+ if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);foot=`<span class="total${t>100?" bad":""}" id="tot-${f.id}">Total stake: ${t}%${t>100?" · exceeds 100%":""}</span>`}
  return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th style="min-width:170px">Name</th>${f.cols.map(th).join("")}</tr></thead><tbody>
- ${ps.length?ps.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="hint">${esc(p.type||"")}${[p.ubo&&"UBO",p.smo&&"SMO",p.sig&&"Signatory"].filter(Boolean).map(x=>" · "+x).join("")}</div></td>${f.cols.map(c=>cell(c,(store[p._id]||{})[c.k],`data-d="${f.id}" data-p="${p._id}" data-c="${c.k}"`,err)).join("")}</tr>`).join(""):`<tr><td colspan="${f.cols.length+1}" class="empty">${esc(f.empty)} <button class="btn ghost sm" data-go="1:0">Go to related parties</button></td></tr>`}
+ ${ps.length?ps.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="hint">${esc(p.desig||p.type||"")}${[p.dir&&"Director",p.ubo&&"UBO",p.smo&&"SMO",p.sig&&"Signatory"].filter(Boolean).map(x=>" · "+x).join("")}</div></td>${f.cols.map(c=>cell(c,(store[p._id]||{})[c.k],`data-d="${f.id}" data-p="${p._id}" data-c="${c.k}"`,err,store[p._id]||{})).join("")}</tr>`).join(""):`<tr><td colspan="${f.cols.length+1}" class="empty">${esc(f.empty)} <button class="btn ghost sm" data-go="1:0">Go to related parties</button></td></tr>`}
  </tbody></table></div>${foot?`<div class="tbl-foot">${foot}<span class="hint">Edit names and roles in Related parties.</span></div>`:""}</div>`;
 }
 const trash=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>`;
@@ -1032,7 +1245,7 @@ function renderMain(keepScroll){
  const last=cur.st===STEPS.length-1;
  const sectionCount=step.sections.length>1?` · Section ${cur.se+1} of ${step.sections.length}`:"";
  const edit=canEdit();
- const lockMsg=edit?"":ME.role==="client"?"View only. This application is with the review team, so it can't be edited right now.":"Reviewer view. Fields are read-only; use the panel above to act on this application.";
+ const lockMsg=edit?"":OWNER_ROLES.includes(ME.role)?"View only. This application is with the review team, so it can't be edited right now.":"Reviewer view. Fields are read-only; use the panel above to act on this application.";
  $("#main").innerHTML=`${wfHTML()}<div class="crumb">Step ${cur.st+1} of ${STEPS.length} · ${esc(step.title)}${sectionCount}</div>
  <div class="sec-head"><div><h1>${esc(sec.title)}</h1><p>${esc(sec.desc||"")}</p></div>${st.req?`<div class="sec-meta"><b class="mono">${Math.min(st.done,st.req)}/${st.req}</b> required complete</div>`:""}</div>
  ${lockMsg&&sec.custom!=="review"?`<div class="lockbar">${esc(lockMsg)}</div>`:""}
@@ -1046,7 +1259,7 @@ function refreshLight(){ // after typing: update counters without re-rendering i
  renderRail();renderFacts();
  const st=status(cur$());const h=$("#leftHint");if(h)h.textContent=st.miss.length?st.miss.length+" required left in this section":"Section complete";
  const m=document.querySelector(".sec-meta b");if(m)m.textContent=Math.min(st.done,st.req)+"/"+st.req;
- document.querySelectorAll(".total").forEach(el=>{const f=cur$().fields.find(x=>"tot-"+x.id===el.id);if(!f)return;const t=parties().filter(f.filter).reduce((a,p)=>a+(parseFloat(((S[f.id]||{})[p._id]||{})[f.total])||0),0);el.textContent=`Total shareholding: ${t}%${t>100?" · exceeds 100%":""}`;el.classList.toggle("bad",t>100)});
+ document.querySelectorAll(".total").forEach(el=>{const f=cur$().fields.find(x=>"tot-"+x.id===el.id);if(!f)return;const t=parties().filter(f.filter).reduce((a,p)=>a+(parseFloat(((S[f.id]||{})[p._id]||{})[f.total])||0),0);el.textContent=`Total stake: ${t}%${t>100?" · exceeds 100%":""}`;el.classList.toggle("bad",t>100)});
 }
 
 /* ---------- Documents ---------- */
@@ -1077,7 +1290,7 @@ function docsHTML(){
 function docRow(x){
  const rv=x.s==="up"?((S._wf||{}).docReview||{})[x.id]:null;
  const [l,c]=rv?(rv.s==="verified"?["Verified","ver"]:["Rejected","rej"]):SLBL[x.s];
- const edit=canEdit(),opsCan=ME.role==="ops"&&["Submitted","Under review"].includes(S._status);
+ const edit=canEdit(),opsCan=({reviewer:"Business review",maker:"Maker review",checker:"Checker review"})[ME.role]===S._status;
  const sub=(x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan")
   +(rv?(rv.s==="verified"?` · Verified by ${rv.by}`:` · Rejected by ${rv.by}: ${rv.note}`):"");
  return `<div class="drow"><div class="dname"><b>${esc(x.name)}</b><small>${esc(sub)}${x.c?" · Client note: "+esc(x.c):""}</small></div><span class="st ${c}">${l}</span>
@@ -1092,7 +1305,7 @@ function docRow(x){
 
 /* ---------- Review ---------- */
 function reviewHTML(){
- const sub=!EDITABLE.includes(S._status),reviewer=ME.role!=="client";
+ const sub=!EDITABLE.includes(S._status),reviewer=!OWNER_ROLES.includes(ME.role);
  let left=0;
  const blocks=STEPS.slice(0,-1).map((s,i)=>{
   const rows=s.sections.map((x,j)=>{const t=status(x);const st=stateOf(t);left+=t.miss.length;
@@ -1101,7 +1314,7 @@ function reviewHTML(){
  }).join("");
  const ready=left===0;
  if(reviewer)return `<div class="rv">${blocks}</div>`;
- return `${sub?`<div class="done-banner"><span class="num done">✓</span><div><b>${S._status==="Approved"?"Application approved":S._status==="Rejected"?"Application closed":"Application submitted"}</b><div>Reference <span class="mono">${esc(S._id)}</span>. ${esc(nextStep(S._status,"client",(S._wf||{}).regNo))}</div></div></div>`:""}
+ return `${sub?`<div class="done-banner"><span class="num done">✓</span><div><b>${S._status==="Completed"?"Onboarding completed":S._status==="Rejected"?"Application closed":"Application submitted"}</b><div>Reference <span class="mono">${esc(S._id)}</span>. ${esc(nextStep(S._status,ME.role,S._wf))}</div></div></div>`:""}
  <div class="rv">${blocks}</div>
  ${sub?"":`<div class="card" style="margin-top:16px"><div class="stack">
   <label class="ck"><input type="checkbox" id="finalDecl" data-k="_decl"${S._decl?" checked":""}${sub?" disabled":""}> I confirm the information in this application is true and complete, and I am authorised to submit it on behalf of the applicant.</label>
@@ -1133,19 +1346,21 @@ function setFrom(el){
  else if(el.type==="checkbox")S[k]=el.checked;
  else S[k]=el.value;
  if(k==="category"&&!(SUBCAT[S.category]||[]).includes(S.subcat))S.subcat="";
+ if(k==="regType")S.panHas=S.regType===REG_TYPES[1]?"Yes":"No";
 }
 const main=$("#main");
 main.addEventListener("input",e=>{
  const el=e.target;
  if(el.id==="docQ"){docQ=el.value;renderMain(true);const q=$("#docQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
- if(el.closest(".wf,.rej-note,.login,.cmt"))return;
+ if(el.id==="homeQ"){homeQ=el.value;renderHome();const q=$("#homeQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
+ if(el.closest(".wf,.rej-note,.login,.cmt,#regForm,.apps"))return;
  if(el.matches("input[type=text],input[type=email],input:not([type]),textarea")){setFrom(el);if(el.dataset.t==="partyList"&&el.dataset.c==="name"){}refreshLight();save()}
 });
 main.addEventListener("change",e=>{
  const el=e.target;
  if(el.dataset.up){const f=el.files[0];if(f)uploadDoc(el.dataset.up,f);return}
  if(el.id==="extraFile"){const f=el.files[0];if(f)uploadDoc("x"+Date.now(),f,f.name.replace(/\.[^.]+$/,""));return}
- if(el.closest(".wf,.rej-note,.login"))return;
+ if(el.closest(".wf,.rej-note,.login,#regForm,.apps"))return;
  if(el.matches("input[type=text],input[type=email],textarea"))return;
  setFrom(el);save();
  if(el.dataset.t==="partyList"||el.matches("select,input[type=radio],input[type=checkbox],input[type=date]"))renderMain(true);
@@ -1176,10 +1391,9 @@ document.addEventListener("click",e=>{
  if(a==="submit"){doAct("submit").then(()=>window.scrollTo(0,0))}
  if(a==="nextRO")next();
  if(a==="logout")logout();
- if(a==="wf-start")doAct("start");
- if(a==="wf-forward")doAct("forward");
- if(a==="wf-approve")doAct("approve");
- if(["wf-query","wf-reject","wf-return"].includes(a)){wfForm=a.slice(3);wfOpen=true;renderMain(true);const t=$("#wf-text");if(t)t.focus()}
+ if(["wf-approve","wf-forward","wf-fee","wf-nsdl","wf-fetchreg","wf-accounts","wf-welcome"].includes(a))doAct(a.slice(3));
+ if(a==="wf-letter")welcomeLetter();
+ if(["wf-reject","wf-return"].includes(a)){wfForm=a.slice(3);wfOpen=true;renderMain(true);const t=$("#wf-text");if(t)t.focus()}
  if(a==="wf-cancel"){wfForm=null;renderMain(true)}
  if(a==="wf-send"){const text=$("#wf-text").value.trim();if(!text){toast("Write a note first.");return}const sec=$("#wf-sec");doAct(wfForm,{text,section:sec?sec.value:""})}
  if(a==="wf-reply"){const i=$("#reply-"+b.dataset.q);const text=i&&i.value.trim();if(!text){toast("Write your answer first.");return}doAct("reply",{qid:b.dataset.q,text})}
@@ -1188,8 +1402,12 @@ document.addEventListener("click",e=>{
  if(a==="docNo"){openRej=openRej===b.dataset.doc?null:b.dataset.doc;renderMain(true);const i=$("#rej-"+b.dataset.doc);if(i)i.focus()}
  if(a==="docNoSend"){const text=$("#rej-"+b.dataset.doc).value.trim();if(!text){toast("Add a reason so the client knows what to fix.");return}const d=docList().find(x=>x.id===b.dataset.doc);doAct("doc",{docId:b.dataset.doc,docName:d?d.name:"",s:"rejected",text})}
  if(a==="home"){closeNav();showHome()}
- if(a==="newSample")createApp(sample());
- if(a==="newBlank")createApp(blank());
+ if(a==="newApp")openBasic();
+ if(a==="basicGo")proceedBasic();
+ if(a==="export")exportApps();
+ if(a==="cancelSend")cancelApp(b.dataset.id);
+ if(a==="register"){history.pushState({},"","?register");renderRegister()}
+ if(a==="toLogin"){history.pushState({},"",location.pathname);renderLogin()}
  if(a==="delApp"){
   const id=b.dataset.id;
   if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.innerHTML="Delete?";b.classList.add("btn","sm");setTimeout(()=>{if(b.isConnected){b.dataset.confirm="";b.innerHTML=trash;b.classList.remove("btn","sm")}},4000);return}
@@ -1197,11 +1415,28 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("click",e=>{
  const o=e.target.closest("[data-open]");if(o){openApp(o.dataset.open);return}
- const h=e.target.closest("[data-hf]");if(h){homeFilter=h.dataset.hf;renderHome()}
+ const h=e.target.closest("[data-hf]");if(h){homeFilter=h.dataset.hf;renderHome();return}
+ const sm=e.target.closest("[data-summary]");if(sm){summaryOf(sm.dataset.summary);return}
+ const cn=e.target.closest("[data-cancel]");if(cn){cancelId=cancelId===cn.dataset.cancel?null:cn.dataset.cancel;renderHome();const i=$("#cancel-reason");if(i)i.focus();return}
+ const rt=e.target.closest("[data-regtab]");if(rt){regTab=rt.dataset.regtab;regRej=null;renderRegistrations();return}
+ const rr=e.target.closest("[data-regrej]");if(rr){regRej=rr.dataset.regrej;renderRegistrations();const i=$("#rr-"+regRej);if(i)i.focus();return}
+ const rd=e.target.closest("[data-regdo]");if(rd){decideReg(rd.dataset.id,rd.dataset.regdo);return}
+ const ck=e.target.closest("[data-check]");if(ck){const k=ck.dataset.check;if(ck.dataset.run){doAct("runcheck",{key:k});return}
+  const note=($("#cn-"+k)||{}).value||"";checkNote[k]=note;if(ck.dataset.s==="Fail"&&!note.trim()){toast("Add a remark explaining the failed check.");return}doAct("check",{key:k,s:ck.dataset.s,text:note})}
 });
 document.addEventListener("submit",e=>{const f=e.target.closest("[data-login]");if(!f)return;e.preventDefault();signIn(f.dataset.login,$("#login-"+f.dataset.login).value)});
 document.addEventListener("toggle",e=>{if(e.target.classList&&e.target.classList.contains("wf"))wfOpen=e.target.open},true);
-function route(){const id=new URLSearchParams(location.search).get("app");!ME?renderLogin():id?openApp(id,false):showHome(false)}
+function route(){const q=new URLSearchParams(location.search),id=q.get("app");if(q.has("register")&&!ME){renderRegister();return}!ME?renderLogin():id?openApp(id,false):showHome(false)}
+/* Basic Information pop-up and registration form keep their own state */
+const dlg=$("#basicDlg");
+const nbSet=el=>{if(el.id==="nb-owner"){NB._owner=el.value;return false}if(el.id==="nb-sample"){NB._sample=el.checked;return false}const k=el.dataset.k;if(!k)return false;
+ if(el.dataset.multi!==undefined){const a=new Set(NB[k]||[]);el.checked?a.add(el.dataset.multi):a.delete(el.dataset.multi);NB[k]=[...a]}else NB[k]=el.value;
+ if(k==="category")NB.subcat="";return k==="category"};
+dlg.addEventListener("input",e=>{nbSet(e.target)});
+dlg.addEventListener("change",e=>{nbSet(e.target);if(e.target.id!=="nb-owner")renderBasic()});
+document.addEventListener("input",e=>{if(e.target.closest("#regForm"))saveLead()});
+document.addEventListener("change",e=>{if(e.target.closest("#regForm"))saveLead()});
+document.addEventListener("submit",e=>{if(e.target.id==="regForm"){e.preventDefault();submitRegistration()}});
 window.addEventListener("popstate",route);
 $("#menuBtn").onclick=()=>document.body.classList.add("nav-open");
 $("#scrim").onclick=closeNav;
