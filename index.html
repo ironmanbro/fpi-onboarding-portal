@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>FPI Onboarding Portal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky header with application facts, left journey rail (collapses to a drawer on phones), one section per screen with a sticky action bar. */
+:root{
+  --bg:#F2F5F4; --surface:#FFFFFF; --surface-2:#F7F9F8; --ink:#13201D; --muted:#5A6B66; --line:#DCE3E0; --line-strong:#C3CEC9;
+  --accent:#0B6B5C; --accent-ink:#FFFFFF; --accent-soft:#E2F0EC; --accent-hover:#085649;
+  --warn:#9A6212; --warn-soft:#FBF0DC; --danger:#B42318; --danger-soft:#FDEBE8; --ok:#1E7445; --ok-soft:#E3F3E8;
+  --info:#2B5B8A; --info-soft:#E6EEF7;
+  --shadow:0 1px 2px rgba(19,32,29,.06),0 4px 16px rgba(19,32,29,.05);
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1513; --surface:#151F1D; --surface-2:#1A2624; --ink:#E3ECE9; --muted:#93A5A0; --line:#28362F; --line-strong:#3A4B46;
+  --accent:#43B9A2; --accent-ink:#04211B; --accent-soft:#14352E; --accent-hover:#5ccbb4;
+  --warn:#E3AB52; --warn-soft:#382A12; --danger:#F07D70; --danger-soft:#3B1916; --ok:#5DC88E; --ok-soft:#14301F;
+  --info:#83B2E0; --info-soft:#172A3D;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1513; --surface:#151F1D; --surface-2:#1A2624; --ink:#E3ECE9; --muted:#93A5A0; --line:#28362F; --line-strong:#3A4B46;
+  --accent:#43B9A2; --accent-ink:#04211B; --accent-soft:#14352E; --accent-hover:#5ccbb4;
+  --warn:#E3AB52; --warn-soft:#382A12; --danger:#F07D70; --danger-soft:#3B1916; --ok:#5DC88E; --ok-soft:#14301F;
+  --info:#83B2E0; --info-soft:#172A3D;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0}
+
+/* Header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--surface);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top-row{display:flex;align-items:center;gap:16px;min-height:56px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;font-size:15px;white-space:nowrap}
+.mark{width:28px;height:28px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:600 12px var(--f-mono)}
+.facts{display:flex;gap:6px 18px;flex-wrap:wrap;flex:1;min-width:0;align-items:center}
+.fact{display:flex;flex-direction:column;line-height:1.25}
+.fact small{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.fact b{font-weight:600;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.draft{background:var(--warn-soft);color:var(--warn)}
+.pill.sub{background:var(--ok-soft);color:var(--ok)}
+.saved{font-size:12px;color:var(--muted);white-space:nowrap}
+.menu-btn{display:none;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:6px 10px;font-weight:600;font-size:13px}
+
+/* Shell */
+.shell{display:grid;grid-template-columns:288px minmax(0,1fr);gap:24px;max-width:1360px;margin:0 auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 0}
+aside.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 80px);align-self:start;max-height:calc(100vh - 100px);overflow:auto;padding-bottom:24px}
+.prog{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
+.prog-top{display:flex;justify-content:space-between;align-items:baseline}
+.prog-top b{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:6px;transition:width .3s}
+.prog p{margin:8px 0 0;color:var(--muted);font-size:12.5px}
+nav.steps{display:flex;flex-direction:column;gap:2px}
+.step{border-radius:var(--r)}
+.step-h{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:9px 10px;border-radius:var(--r);text-align:left;font-weight:600}
+.step-h:hover{background:var(--surface)}
+.step.on .step-h{background:var(--surface);box-shadow:var(--shadow)}
+.num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:600 11.5px var(--f-mono);border:1.5px solid var(--line-strong);color:var(--muted);flex:none;background:var(--surface)}
+.num.done{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.num.part{border-color:var(--accent);color:var(--accent)}
+.step-h .cnt{margin-left:auto;font:500 11.5px var(--f-mono);color:var(--muted)}
+.subs{list-style:none;margin:2px 0 8px 21px;padding:0 0 0 12px;border-left:1.5px solid var(--line)}
+.subs button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;text-align:left;padding:6px 8px;border-radius:6px;color:var(--muted);font-size:13px}
+.subs button:hover{color:var(--ink);background:var(--surface)}
+.subs button.on{color:var(--ink);font-weight:600;background:var(--accent-soft)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;border:1.5px solid var(--line-strong)}
+.dot.done{background:var(--ok);border-color:var(--ok)}
+.dot.part{background:linear-gradient(90deg,var(--warn) 50%,transparent 50%);border-color:var(--warn)}
+.rail-foot{margin-top:16px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.linkbtn{border:0;background:none;color:var(--accent);padding:4px 10px;text-align:left;font-weight:600;font-size:12.5px}
+.linkbtn:hover{text-decoration:underline}
+
+/* Main */
+main{min-width:0;padding-bottom:24px}
+.crumb{color:var(--muted);font-size:12.5px;display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.sec-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
+.sec-head h1{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.sec-head p{margin:4px 0 0;color:var(--muted);max-width:68ch}
+.sec-meta{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.sec-meta b{color:var(--ink)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto;scrollbar-width:thin}
+.tabs button{border:0;background:none;padding:10px 12px;font-weight:600;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:flex;gap:7px;align-items:center}
+.tabs button.on{color:var(--ink);border-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 18px}
+.full{grid-column:1/-1}.s2{grid-column:span 2}
+.sub{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);font-weight:700;padding-top:10px;border-top:1px solid var(--line);margin-top:4px}
+.sub:first-child{border-top:0;padding-top:0;margin-top:0}
+.note{margin:0;color:var(--muted);font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.note.info{background:var(--info-soft);border-color:transparent;color:var(--ink)}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>label,.lbl{font-size:12.5px;font-weight:600;color:var(--ink);display:flex;gap:4px;align-items:center}
+.req{color:var(--danger)}
+.opt{color:var(--muted);font-weight:400}
+.in,.sel,textarea.in{width:100%;border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;padding:9px 11px;min-height:38px;transition:border-color .15s,box-shadow .15s}
+textarea.in{min-height:76px;resize:vertical}
+.in:hover,.sel:hover{border-color:var(--muted)}
+.in:focus,.sel:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.in[readonly]{background:var(--surface-2);color:var(--muted)}
+.sel{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+.phone{display:grid;grid-template-columns:minmax(0,118px) minmax(0,1fr);gap:6px}
+.err .in,.err .sel,.err .seg{border-color:var(--danger)}
+.msg{font-size:12px;color:var(--danger)}
+.hint{font-size:12px;color:var(--muted)}
+.tip{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--line);color:var(--muted);font-size:10px;font-weight:700;position:relative;cursor:help}
+.tip:hover::after,.tip:focus::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);width:240px;background:var(--ink);color:var(--bg);font-weight:400;font-size:12px;line-height:1.4;padding:8px 10px;border-radius:6px;z-index:20;text-transform:none;letter-spacing:0}
+.fld .seg{align-self:flex-start;max-width:100%}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden;background:var(--surface);flex-wrap:wrap}
+.seg label{position:relative;cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;padding:7px 14px;font-size:13px;font-weight:500;border-right:1px solid var(--line);white-space:nowrap}
+.seg label:last-child span{border-right:0}
+.seg input:checked+span{background:var(--accent);color:var(--accent-ink)}
+.seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
+.q{display:flex;justify-content:space-between;gap:12px 24px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.q .qt{flex:1 1 360px;min-width:0;font-size:13.5px}
+.q.err .qt::after{content:" · Required";color:var(--danger);font-size:12px}
+.q+.sub,.q+.note{margin-top:8px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.choice{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:7px;padding:10px 12px;cursor:pointer;background:var(--surface);font-size:13.5px}
+.choice:hover{border-color:var(--line-strong)}
+.choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.choice input{margin-top:3px;accent-color:var(--accent)}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px}
+.ck{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer;padding:3px 0}
+.ck input,td input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th{background:var(--surface-2);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td .in,td .sel{min-height:34px;padding:6px 9px}
+td .sel{padding-right:28px}
+td.c,th.c{text-align:center}
+td.n{color:var(--muted);font:500 12px var(--f-mono);width:36px}
+.tbl-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+.icon-btn{border:0;background:none;color:var(--muted);padding:6px;border-radius:6px;display:grid;place-items:center}
+.icon-btn:hover{background:var(--danger-soft);color:var(--danger)}
+.empty{padding:22px;text-align:center;color:var(--muted);font-size:13px}
+.total{font:500 12.5px var(--f-mono)}
+.total.bad{color:var(--danger)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:7px;padding:9px 16px;font-weight:600;font-size:13.5px;border:1px solid transparent;white-space:nowrap}
+.btn.pri{background:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover{background:var(--accent-hover)}
+.btn.sec{background:var(--surface);border-color:var(--line-strong)}
+.btn.sec:hover{border-color:var(--muted)}
+.btn.ghost{background:none;color:var(--accent);padding-inline:8px}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.actions{position:sticky;bottom:0;z-index:15;margin-top:18px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(6px);border-top:1px solid var(--line);
+  padding-block:12px calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.actions .sp{flex:1}
+.actions .hint{white-space:nowrap}
+
+/* Docs */
+.doc-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.doc-tools .in{max-width:260px}
+.chipset{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.dgroup{margin-bottom:18px}
+.dgroup h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.dgroup h3 span{font:500 12px var(--f-mono);color:var(--muted)}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.drow:last-child{border-bottom:0}
+.dlist{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.dname{display:flex;flex-direction:column;min-width:0}
+.dname b{font-weight:600;font-size:13.5px}
+.dname small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;justify-self:start;white-space:nowrap}
+.st.gen{background:var(--info-soft);color:var(--info)}
+.st.pend{background:var(--danger-soft);color:var(--danger)}
+.st.up{background:var(--ok-soft);color:var(--ok)}
+.st.none{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.dact{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.cmt{grid-column:1/-1;display:flex;gap:8px}
+.cmt .in{flex:1}
+.drop{border:1.5px dashed var(--line-strong);border-radius:var(--r);padding:16px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px;background:var(--surface-2)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+
+/* Review */
+.rv{display:grid;gap:14px}
+.rv-step{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.rv-step h3{font-size:14px;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+.rv-row{display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rv-row:last-child{border-bottom:0}
+.rv-row .t{flex:1;min-width:0;display:flex;gap:10px;align-items:center}
+.rv-row small{color:var(--muted);display:block;font-size:12px}
+.done-banner{display:flex;gap:16px;align-items:flex-start;background:var(--ok-soft);border-radius:var(--r);padding:18px;margin-bottom:16px}
+.done-banner b{font-size:16px}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--ink);color:var(--bg);padding:11px 14px;border-radius:9px;display:flex;gap:14px;align-items:center;font-size:13.5px;z-index:50;transition:.2s;max-width:calc(100vw - 32px);box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.toast button{border:0;background:none;color:var(--bg);font-weight:700;text-decoration:underline;padding:0}
+.scrim{display:none}
+
+@media (max-width:1080px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.s2{grid-column:1/-1}}
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);padding-top:16px}
+  .menu-btn{display:inline-flex}
+  aside.rail{position:fixed;top:0;bottom:0;left:0;width:min(320px,86vw);max-height:none;z-index:60;background:var(--bg);
+    padding:calc(16px + env(safe-area-inset-top,0px)) 14px 24px max(14px,env(safe-area-inset-left,0px));transform:translateX(-105%);transition:transform .25s;box-shadow:var(--shadow)}
+  body.nav-open aside.rail{transform:none}
+  body.nav-open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:55}
+  .facts .fact.opt-hide{display:none}
+}
+@media (max-width:620px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .s2{grid-column:auto}
+  .card{padding:16px}
+  .sec-head h1{font-size:20px}
+  .drow{grid-template-columns:minmax(0,1fr) auto}
+  .drow .dact{grid-column:1/-1;justify-content:flex-start}
+  .facts{display:none}
+  .actions .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <button class="menu-btn" id="menuBtn" aria-label="Open steps">☰ Steps</button>
+    <div class="brand"><span class="mark">FPI</span>Onboarding Portal</div>
+    <div class="facts" id="facts"></div>
+    <span class="saved" id="saved">Draft saved</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail" id="rail" aria-label="Application steps"></aside>
+  <div class="scrim" id="scrim"></div>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- Reference data ---------- */
+const COUNTRIES=[["India","+91"],["United States","+1"],["United Kingdom","+44"],["Singapore","+65"],["Mauritius","+230"],["Luxembourg","+352"],["Ireland","+353"],["Cayman Islands","+1-345"],["Hong Kong","+852"],["Japan","+81"],["Canada","+1"],["Australia","+61"],["Germany","+49"],["France","+33"],["Netherlands","+31"],["Switzerland","+41"],["United Arab Emirates","+971"],["Saudi Arabia","+966"],["Qatar","+974"],["Kuwait","+965"],["Bahrain","+973"],["Oman","+968"],["Norway","+47"],["Sweden","+46"],["Denmark","+45"],["Finland","+358"],["Belgium","+32"],["Spain","+34"],["Italy","+39"],["Austria","+43"],["Portugal","+351"],["Cyprus","+357"],["Malta","+356"],["Jersey","+44"],["Guernsey","+44"],["Isle of Man","+44"],["Bermuda","+1-441"],["British Virgin Islands","+1-284"],["South Korea","+82"],["Taiwan","+886"],["Malaysia","+60"],["Indonesia","+62"],["Thailand","+66"],["Philippines","+63"],["New Zealand","+64"],["South Africa","+27"],["Israel","+972"],["Brazil","+55"],["Mexico","+52"]];
+const CN=COUNTRIES.map(c=>c[0]);
+const YN=["Yes","No"], YNNA=["Yes","No","NA"];
+const SUBCAT={"Category I":["Government and government-related investor","Pension fund","Insurance or reinsurance company","Bank","Appropriately regulated fund","University fund","Sovereign wealth fund"],
+ "Category II":["Appropriately regulated fund (not in Category I)","Endowment","Charitable organisation","Corporate body","Family office","Individual","Unregulated fund with regulated manager"]};
+const POI=["Certificate of incorporation / formation","Registration certificate","Trust deed","Partnership deed","Memorandum & articles"];
+const POA=["Bank account statement (≤ 3 months old)","Utility bill (≤ 3 months old)","Registered lease agreement","Regulator-issued certificate"];
+const DESIG=["Director","Manager","Trustee","Partner","Authorised officer","Company secretary"];
+const CPT=["C01 · Legal person · ownership","C02 · Legal person · other means","C03 · Legal person · senior managing official","C04 · Trust · settlor","C05 · Trust · trustee","C06 · Trust · protector","C07 · Trust · beneficiary","C08 · Trust · other"];
+const OCC=["B · Business","S · Service","P · Professional","O · Others"];
+
+/* ---------- Schema ---------- */
+const addr=(p,cls)=>[
+ {id:p+"_l1",label:"Address line 1",req:1},{id:p+"_l2",label:"Address line 2",req:1},{id:p+"_l3",label:"Address line 3"},
+ {id:p+"_pin",label:"PIN / ZIP / postal code",req:1},{id:p+"_city",label:"City / town",req:1},{id:p+"_state",label:"State / province"},
+ {id:p+"_country",label:"Country",type:"country",req:1}].map(f=>cls?{...f,show:cls}:f);
+const yes=k=>s=>s[k]==="Yes";
+
+const STEPS=[
+{id:"inv",title:"Investor details",sections:[
+ {id:"setup",title:"Application setup",desc:"Tell us what you are applying for. These choices decide which questions appear later, so the form stays as short as possible.",fields:[
+  {id:"depository",label:"Depository",type:"select",req:1,opts:["Depository A","Depository B"]},
+  {id:"invType",label:"Investor type",type:"radio",req:1,opts:["Non-individual","Individual"]},
+  {id:"product",label:"Product",type:"select",req:1,opts:["FPI","FVCI"]},
+  {id:"category",label:"FPI category",type:"radio",req:1,opts:["Category I","Category II"],help:"Category I covers government-related, regulated and sovereign investors. Most funds and corporates fall under Category II."},
+  {id:"subcat",label:"Sub-category",type:"select",req:1,opts:s=>SUBCAT[s.category]||[]},
+  {id:"constitution",label:"Constitution type",type:"select",req:1,opts:["Private limited company","Public limited company","Trust","LLP / partnership","Society","Fund / collective investment scheme"]},
+  {id:"appType",label:"Application type",type:"radio",req:1,opts:["New","Conversion","Re-KYC"]},
+  {id:"appMode",label:"Application mode",type:"radio",req:1,opts:["Investing","Non-investing"]},
+  {id:"rm",label:"Relationship manager email",type:"email",req:1,help:"The person on our side who will handle your onboarding."}]},
+ {id:"profile",title:"Investor profile",desc:"Basic identity of the applying entity, exactly as on its registration certificate.",fields:[
+  {id:"invName",label:"Legal name (as per registration certificate)",req:1,span:2},
+  {id:"incCountry",label:"Country of incorporation",type:"country",req:1},
+  {id:"fundAdmin",label:"Fund administrator",opt:1,help:"Leave blank if the entity does not use a third-party administrator."},
+  {id:"mobile",label:"Mobile number",type:"phone",req:1},
+  {id:"regEmail",label:"Registered email (for communication)",type:"email",req:1}]},
+ {id:"pan",title:"PAN details",desc:"Indian Permanent Account Number. If the entity does not hold one yet, we collect what is needed to apply for it on your behalf.",fields:[
+  {id:"panHas",label:"Does the applicant already have a PAN?",type:"yn",req:1},
+  {id:"panNo",label:"PAN",req:1,show:yes("panHas"),ph:"AAAAA9999A"},
+  {type:"h",label:"Assessing officer (for new PAN application)",show:s=>s.panHas==="No"},
+  {id:"panStatus",label:"Status of applicant",type:"select",req:1,opts:["Company","Trust","Body of individuals","Association of persons","Firm"],show:s=>s.panHas==="No"},
+  {id:"aoCode",label:"AO code",type:"select",req:1,opts:["International Taxation Ward 1(1), Mumbai","International Taxation Ward 2(1), Mumbai","International Taxation Ward 1(1), Delhi"],show:s=>s.panHas==="No",help:"The tax ward that will handle the PAN. For most foreign entities this is the International Taxation ward."},
+  {id:"aoArea",label:"Area code",req:1,show:s=>s.panHas==="No"},
+  {id:"aoType",label:"AO type",req:1,show:s=>s.panHas==="No"},
+  {id:"aoRange",label:"Range code",req:1,show:s=>s.panHas==="No"},
+  {id:"aoNo",label:"AO number",req:1,show:s=>s.panHas==="No"},
+  {id:"repHas",label:"Appoint a representative assessee or agent in India?",type:"yn",req:1,show:s=>s.panHas==="No"},
+  {id:"repTitle",label:"Title",type:"select",opts:["Mr","Ms","Mx","Dr"],req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
+  {id:"repFirst",label:"Agent first name",req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
+  {id:"repLast",label:"Agent last name",req:1,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
+  ...addr("rep",s=>s.panHas==="No"&&s.repHas==="Yes"),
+  {id:"repPoi",label:"Agent proof of identity",type:"select",req:1,opts:["Passport","National ID card","Driving licence","Arms licence"],show:s=>s.panHas==="No"&&s.repHas==="Yes"},
+  {id:"repPoa",label:"Agent proof of address",type:"select",req:1,opts:POA,show:s=>s.panHas==="No"&&s.repHas==="Yes"},
+  {type:"h",label:"Listing and business activities"},
+  {id:"listed",label:"Is the entity listed on a stock exchange?",type:"yn",req:1},
+  {id:"exchange",label:"Name of stock exchange",req:1,show:yes("listed")},
+  {id:"svcFx",label:"Involved in foreign exchange or money-changer services?",type:"yn",req:1},
+  {id:"svcGame",label:"Involved in gaming, gambling or lottery services?",type:"yn",req:1},
+  {id:"svcLend",label:"Involved in money lending or pawning?",type:"yn",req:1}]},
+ {id:"kyc",title:"KYC details",desc:"Identity, address and contact information used for KYC verification.",fields:[
+  {type:"h",label:"Identity"},
+  {id:"abbr",label:"Abbreviated name",req:1},
+  {id:"otherNameHas",label:"Has the entity been known by any other name?",type:"yn",req:1},
+  {id:"otherName",label:"Previous / other name",req:1,show:yes("otherNameHas")},
+  {id:"doi",label:"Date of incorporation",type:"date",req:1},
+  {id:"doc",label:"Date of commencement of business",type:"date",req:1},
+  {id:"poi_place",label:"Place of incorporation",req:1},
+  {id:"regNo",label:"Company registration number",req:1},
+  {id:"tin",label:"Tax registration (TIN)",req:1},
+  {id:"taxRes",label:"Country of tax residency",type:"country",req:1},
+  {id:"kycPoi",label:"Proof of identity",type:"select",req:1,opts:POI},
+  {id:"kycPoiNo",label:"Proof of identity number",req:1},
+  {id:"kycPoa",label:"Proof of address",type:"select",req:1,opts:POA},
+  {type:"h",label:"Registered address"},
+  ...addr("reg"),
+  {type:"h",label:"Office address"},
+  {id:"offSame",label:"Office address is the same as the registered address",type:"check"},
+  {id:"offName",label:"Name of office",req:1,show:s=>!s.offSame},
+  ...addr("off",s=>!s.offSame),
+  {id:"commAddr",label:"Address for communication",type:"radio",req:1,opts:["Registered","Office"]},
+  {type:"h",label:"Contact details"},
+  {id:"fax",label:"Fax number",opt:1},
+  {id:"kycEmail",label:"Email address",type:"email",req:1},
+  {id:"website",label:"Website",opt:1},
+  {id:"telReg",label:"Registered office telephone",type:"phone",req:1},
+  {id:"telOff",label:"Office telephone",type:"phone",opt:1}]},
+ {id:"income",title:"Income details",desc:"Financial profile used for risk profiling. Figures are in Indian Rupees.",fields:[
+  {id:"incSource",label:"Source of income",type:"select",req:1,opts:["Investment income","Business income","Contributions / donations","Income from other sources"]},
+  {id:"grossInc",label:"Gross annual income (₹)",type:"num",req:1},
+  {id:"netWorth",label:"Net worth (₹)",type:"num",req:1},
+  {id:"asOn",label:"Net worth as on",type:"date",req:1,help:"Must not be older than one year."},
+  {id:"occ",label:"Occupation (for non-individuals)",type:"select",req:1,opts:["Financial institution","Investment fund","Corporate","Non-profit","Government body"]},
+  {type:"note",label:"Answer the next two for the applicant and its authorised signatories, promoters, partners, trustees, whole-time directors and office bearers."},
+  {id:"pep",label:"Is any of them a politically exposed person (PEP)?",type:"yn",req:1},
+  {id:"pepRel",label:"Is any of them related to a politically exposed person?",type:"yn",req:1},
+  {id:"pepDetail",label:"Give the person's name and the nature of exposure",type:"textarea",req:1,span:"full",show:s=>s.pep==="Yes"||s.pepRel==="Yes"}]}
+]},
+{id:"rp",title:"Related parties",sections:[
+ {id:"parties",title:"Related parties",desc:"List every person or entity connected to the applicant once, then tick their roles. Signatory, UBO and FATCA screens are filled from this list automatically.",fields:[
+  {id:"hasUbo",label:"Does the entity have an ultimate beneficial owner (UBO)?",type:"yn",req:1},
+  {id:"partyList",type:"table",label:"Related parties",min:1,add:"Add party",cols:[
+   {k:"type",label:"Type",type:"select",opts:["Individual","Non-individual"],req:1,w:150},
+   {k:"name",label:"Name",req:1,w:200},
+   {k:"sig",label:"Authorised signatory",type:"cb"},{k:"ops",label:"Operations",type:"cb"},{k:"acct",label:"Account opening",type:"cb"},
+   {k:"ubo",label:"UBO",type:"cb"},{k:"smo",label:"SMO",type:"cb",help:"Senior managing official. Required when no natural person qualifies as UBO."}]}]},
+ {id:"sigs",title:"Authorised signatories",desc:"Set how accounts are operated, then the rights of each signatory. Only parties marked as authorised signatory appear here.",fields:[
+  {id:"modeAcct",label:"Mode of operation · account opening",type:"radio",req:1,opts:["Severally","Jointly"]},
+  {id:"modeWeb",label:"Mode of operation · web custody",type:"radio",req:1,opts:["Severally","Jointly"]},
+  {id:"modeCsgl",label:"Mode of operation · CSGL",type:"radio",req:1,opts:["Severally","Jointly"],help:"Constituent Subsidiary General Ledger account, used to hold government securities."},
+  {id:"modePcm",label:"Mode of operation · PCM",type:"radio",req:1,opts:["Severally","Jointly"],help:"Payment and cash management."},
+  {type:"derived",id:"sig",label:"Signatory rights",filter:p=>p.sig,empty:"No one is marked as an authorised signatory yet. Tick the box in Related parties.",cols:[
+   {k:"desig",label:"Designation",type:"select",opts:DESIG,req:1,w:170},
+   {k:"acct",label:"Account opening",type:"cb"},{k:"csgl",label:"CSGL",type:"cb"},{k:"pcm",label:"PCM",type:"cb"},{k:"web",label:"Web custody",type:"cb"},
+   {k:"maker",label:"Maker",type:"cb"},{k:"checker",label:"Checker",type:"cb"},{k:"auto",label:"Auto-authoriser",type:"cb"}]}]},
+ {id:"ubo",title:"UBO / SMO details",desc:"Ownership and control for every party marked as UBO or SMO. Shareholding must not add up to more than 100%.",fields:[
+  {type:"derived",id:"uboD",label:"Beneficial ownership",filter:p=>p.ubo||p.smo,empty:"No party is marked as UBO or SMO yet.",total:"share",cols:[
+   {k:"own",label:"Ownership",type:"cb"},{k:"ctl",label:"Control",type:"cb"},
+   {k:"share",label:"Share %",type:"num",w:90},{k:"ctlPct",label:"Control %",type:"num",w:90},
+   {k:"stake",label:"Stake type",type:"select",opts:["Direct","Indirect"],req:1,w:120},
+   {k:"alone",label:"Acting alone / together",req:1,w:170,help:"Whether this person exercises ownership or control alone or together with others."},
+   {k:"via",label:"Held through entity",w:150,help:"For indirect stakes: the intermediate entity through which the interest is held."},
+   {k:"method",label:"Method of control",w:150}]},
+  {id:"family",label:"Do a few people from the same family hold beneficial ownership and control together?",type:"yn",req:1}]},
+ {id:"uboFatca",title:"UBO / SMO FATCA details",desc:"Tax information for each controlling person.",fields:[
+  {type:"derived",id:"uboF",label:"FATCA details",filter:p=>p.ubo||p.smo,empty:"No party is marked as UBO or SMO yet.",cols:[
+   {k:"tin",label:"TIN",req:1,w:140},{k:"tinC",label:"TIN issuing country",type:"select",opts:CN,req:1,w:170},
+   {k:"cpt",label:"Controlling person type",type:"select",opts:CPT,req:1,w:250},{k:"occ",label:"Occupation",type:"select",opts:OCC,req:1,w:150}]}]}
+]},
+{id:"reg",title:"FPI registration",sections:[
+ {id:"im",title:"Investment management",desc:"Category of applicant and details of investment managers and the compliance officer.",fields:[
+  {id:"im_cat",label:"Category",ro:s=>s.category,type:"ro"},
+  {id:"im_sub",label:"Sub-category",ro:s=>s.subcat,type:"ro",span:2},
+  {id:"mim",label:"Is the applicant seeking registration under a multi investment manager (MIM) structure?",type:"yn",req:1,help:"Not applicable for individuals."},
+  {id:"imList",type:"table",label:"Investment managers registered under regulation 5(a) of the FPI Regulations",min:1,show:yes("mim"),add:"Add manager",cols:[
+   {k:"notReg",label:"Not registered with SEBI",type:"cb"},{k:"sebi",label:"SEBI registration no.",w:170},{k:"name",label:"Name of investment manager",req:1,w:220},{k:"exp",label:"Expiry date",type:"date",req:1,w:150}]},
+  {id:"selfCert",label:"Has the applicant provided a valid self-certification (FATCA/CRS) form?",type:"radio",req:1,opts:["Yes","Not applicable"],span:"full"},
+  {type:"h",label:"Compliance officer"},
+  {id:"coName",label:"Name",req:1},{id:"coTitle",label:"Job title",req:1},{id:"coPhone",label:"Telephone",type:"phone",req:1},
+  {id:"coEmail",label:"Email",type:"email",req:1},{id:"coFax",label:"Fax",opt:1}]},
+ {id:"regulator",title:"Regulatory authority",desc:"The regulator that supervises the applicant, if any.",fields:[
+  {id:"rgName",label:"Name of the regulator",req:1},{id:"rgCountry",label:"Country",type:"country",req:1},{id:"rgWeb",label:"Website",opt:1},
+  {id:"rgNo",label:"Registration number / code with regulator",req:1},
+  {id:"rgCap",label:"Category / capacity in which the applicant is regulated",type:"textarea",req:1,span:"full"},
+  {id:"viaGc",label:"Is the applicant coming through a global custodian?",type:"yn",req:1},
+  {id:"gcName",label:"Name of global custodian",req:1,show:yes("viaGc")},{id:"gcReg",label:"Its regulator",req:1,show:yes("viaGc")},{id:"gcNo",label:"Registration number",req:1,show:yes("viaGc")},
+  ...addr("gc",yes("viaGc"))]},
+ {id:"cust",title:"Custodian details",desc:"Your designated depository participant and authorised dealer bank are filled in for you.",fields:[
+  {type:"note",cls:"info",label:"These details belong to your assigned custodian and are pre-filled. Contact your relationship manager if anything looks wrong."},
+  {id:"ddpName",label:"DDP / custodian of securities",type:"ro",ro:()=>"Your assigned custodian"},
+  {id:"ddpSebi",label:"SEBI registration number",type:"ro",ro:()=>"IN-DP-CUST-0005"},
+  {id:"adBank",label:"AD Category I bank (approved by RBI)",type:"ro",ro:()=>"Assigned AD Category I bank, Mumbai"},
+  {type:"h",label:"Disciplinary history"},
+  {type:"note",label:"Has the applicant, its parent or holding company, or its associate / promoter / investment manager ever been subject to criminal liability, suspended from operations, had its registration revoked, or faced regulatory action in its home jurisdiction that affects FPI registration in India?"},
+  {id:"disc",label:"Any disciplinary history?",type:"yn",req:1},
+  {id:"discDetail",label:"Please give details",type:"textarea",req:1,span:"full",show:yes("disc")}]},
+ {id:"club",title:"Clubbing of investments",desc:"Declare common ownership or control with other FPIs, which affects investment limits.",fields:[
+  {id:"clubOpt",label:"Which statement applies?",type:"radio",stack:1,req:1,span:"full",opts:[
+   "We do not share common ownership (directly or indirectly) of more than 50%, or common control, with other FPIs, and are not exempt under regulation 22(4).",
+   "We share common ownership of more than 50%, or common control, with other FPIs and are not exempt under regulation 22(4). Details of the investor group are given below.",
+   "Investment limits are not clubbed because we are a public retail fund under regulation 22(4)."]},
+  {id:"clubList",type:"table",label:"Investor group",min:1,show:s=>s.clubOpt&&s.clubOpt.startsWith("We share"),add:"Add FPI",cols:[
+   {k:"name",label:"Name of FPI / subscriber",req:1,w:220},{k:"odi",label:"If ODI subscriber, name of issuing FPI",w:220},{k:"reg",label:"FPI registration number",req:1,w:180}]}]},
+ {id:"prior",title:"Prior association",desc:"Earlier registrations with Indian securities markets.",fields:[
+  {id:"priorHas",label:"Was the applicant ever associated with Indian securities markets as FPI, FII, sub-account, QFI or FVCI?",type:"yn",req:1},
+  {id:"priorList",type:"table",label:"Previous registrations",min:1,show:yes("priorHas"),add:"Add registration",cols:[
+   {k:"name",label:"Name of entity",req:1,w:220},{k:"as",label:"Registered as",type:"select",opts:["FPI","FII","Sub-account","QFI","FVCI"],req:1,w:150},{k:"sebi",label:"SEBI registration no.",req:1,w:180}]}]}
+]},
+{id:"caf",title:"Annexure to CAF",sections:[
+ {id:"partA",title:"Part A · ODI hedging & bank declaration",desc:"Annexure to the common application form.",fields:[
+  {id:"odiHedge",label:"Separate registration for hedging ODIs with derivatives as underlying in India?",type:"ynna",req:1},
+  {id:"catIList",type:"table",label:"Eligible Category I entities registered under regulation 5(a)(i)(B)",min:1,show:yes("odiHedge"),add:"Add entity",cols:[
+   {k:"name",label:"Name of entity",req:1,w:200},{k:"country",label:"Country",type:"select",opts:CN,req:1,w:170},{k:"etype",label:"Entity type under 5(a)",type:"select",opts:["Public limited company","Private limited company","Trust","Fund"],req:1,w:200}]},
+  {id:"bankDecl",label:"Bank or subsidiary of a bank",type:"radio",stack:1,req:1,span:"full",opts:[
+   "We are not a bank or a subsidiary of a bank.",
+   "We are a bank (or a subsidiary of one) and our group has a branch or representative office in India.",
+   "We are a bank (or a subsidiary of one) and our group has no branch or representative office in India."]},
+  {id:"branchName",label:"Name of branch or representative office in India",req:1,span:2,show:s=>(s.bankDecl||"").includes("has a branch")}]},
+ {id:"partB",title:"Part B · NRI / OCI / RI declaration",desc:"Not applicable if seeking registration under regulation 5(a)(i).",fields:[
+  {id:"nriA",label:"Section A · NRI / OCI / RI control",type:"radio",stack:1,req:1,span:"full",opts:[
+   "No NRI / OCI / RI exercises control over the FPI.",
+   "NRI / OCI / RI exercise control, and we will meet the eligibility conditions within two years of registration.",
+   "The applicant is controlled by an investment manager controlled by NRI / OCI / RI.",
+   "We are an offshore fund holding a no-objection certificate from SEBI.",
+   "We are incorporated in India and appropriately registered with SEBI."]},
+  {id:"nriB",label:"Section B · NRI / OCI / RI entitlement",type:"radio",stack:1,req:1,span:"full",opts:[
+   "There are no NRI / OCI / RI constituents in the FPI.",
+   "Contribution of a single NRI / OCI / RI is below 25%, and of all of them together below 50%, of the corpus.",
+   "NRI / OCI / RI investment is not yet within these limits; we will meet the conditions within two years of registration.",
+   "None of the above applies; we will invest only in mutual funds in India."]},
+  {id:"kraConsent",label:"Should KRAs ask for consent before letting an intermediary download your KYC information?",type:"yn",req:1},
+  {type:"h",label:"Authorised representative of FPI"},
+  {id:"arName",label:"Name",req:1},{id:"arE1",label:"Email 1",type:"email",req:1},{id:"arE2",label:"Email 2",type:"email",opt:1},
+  {id:"arE3",label:"Email 3",type:"email",opt:1},{id:"arMob",label:"Mobile",type:"phone",req:1}]},
+ {id:"bo",title:"BO declaration",desc:"Segregated portfolios for sub-funds or share classes.",fields:[
+  {id:"segPort",label:"Does the applicant maintain a segregated portfolio for each sub-fund, share class or equivalent structure that intends to invest in India?",type:"yn",req:1},
+  {id:"subFunds",type:"table",label:"Sub-funds",min:1,show:yes("segPort"),add:"Add sub-fund",cols:[{k:"name",label:"Name of sub-fund",req:1,w:320}]}]}
+]},
+{id:"add",title:"Additional information",sections:[
+ {id:"aml",title:"Anti-money laundering",desc:"Answer for the institution as a whole. Choose NA only when a question does not apply.",fields:[
+  {id:"a1",label:"Is the institution required by law or regulation to run an anti-money laundering programme?",type:"ynna",req:1},
+  {id:"a2",label:"Does the institution have a formal, distinct AML programme?",type:"ynna",req:1},
+  {id:"a3",label:"Has the AML programme been approved by the board (or a board committee)?",type:"ynna",req:1},
+  {id:"a4",label:"Does the AML programme cover all businesses and customers?",type:"ynna",req:1},
+  {type:"h",label:"The AML programme is reviewed during inspections by"},
+  {id:"a5",label:"Government financial supervisors",type:"ynna",req:1},
+  {id:"a6",label:"Internal or external audit",type:"ynna",req:1},
+  {id:"a7",label:"Self-assessment",type:"ynna",req:1},
+  {type:"h",label:"Customer due diligence"},
+  {id:"a8",label:"Do customer identification procedures meet current FATF recommendations?",type:"ynna",req:1},
+  {id:"a9",label:"Is due diligence performed on every new customer at account opening?",type:"ynna",req:1},
+  {id:"a10",label:"Do you document each customer's business and expected transactions?",type:"ynna",req:1},
+  {id:"a11",label:"Do you deal only with financial institutions licensed in their home countries?",type:"ynna",req:1},
+  {id:"a12",label:"Do you identify politically exposed persons and apply enhanced due diligence?",type:"ynna",req:1},
+  {id:"a13",label:"Is customer due diligence information reviewed and updated regularly?",type:"ynna",req:1},
+  {id:"a14",label:"Are beneficial owners of corporate customers verified (except holdings below 10%)?",type:"ynna",req:1},
+  {id:"a15",label:"Must KYC records be retained?",type:"ynna",req:1},
+  {id:"a15y",label:"Retention period (years)",type:"num",req:1,show:yes("a15")},
+  {type:"h",label:"Business profile"},
+  {id:"bizTypes",label:"Banking or financial services you provide",type:"checks",req:1,span:"full",opts:["Current account / third-party payment","Custody","Deposit taking","Derivatives","Foreign currency dealing","Fund management","Futures and options trading","Leasing","Lending","Securities dealing","Trade finance / letters of credit","Others"]},
+  {id:"custBase",label:"Your customer base",type:"checks",req:1,span:"full",opts:["Corporate · domestic","Corporate · international","Financial institutions · domestic","Financial institutions · international","Retail · domestic","Retail · international"]},
+  {type:"h",label:"Controls"},
+  {id:"a16",label:"Do you prohibit relationships or transactions with shell banks?",type:"ynna",req:1},
+  {id:"a17",label:"Do you screen and block transactions with UN-sanctioned countries?",type:"ynna",req:1},
+  {id:"a18",label:"Do you report suspicious transactions to the competent authorities?",type:"ynna",req:1},
+  {id:"a19",label:"Do staff receive regular AML training?",type:"ynna",req:1},
+  {id:"a19f",label:"Training frequency (times per year)",type:"num",req:1,show:yes("a19")}]},
+ {id:"addl",title:"Additional details",desc:"Legal entity identifier, beneficiary bank, tax consultant and communication preferences.",tabs:["Entity & bank","Tax consultant","Communication","Consents"],fields:[
+  {tab:0,type:"h",label:"Entity"},
+  {tab:0,id:"lei",label:"LEI number",req:1,help:"20-character Legal Entity Identifier."},{tab:0,id:"leiExp",label:"LEI expiry date",type:"date",req:1},
+  {tab:0,id:"finStmt",label:"Does the applicant have financial statements for the last 2 years?",type:"yn",req:1},
+  {tab:0,id:"opMode",label:"Mode of operation for investor",type:"radio",req:1,span:"full",opts:["Any one singly","As per resolution","Jointly","Others"]},
+  {tab:0,id:"brDate",label:"Date of board resolution",type:"date",req:1},
+  {tab:0,type:"h",label:"Beneficiary bank"},
+  {tab:0,id:"bbName",label:"Beneficiary name",req:1},{tab:0,id:"bbAcct",label:"Account number",req:1},{tab:0,id:"bbBank",label:"Beneficiary bank",req:1},
+  ...addr("bb").map(f=>({...f,tab:0})),
+  {tab:0,id:"bbSwift",label:"SWIFT / BIC code",req:1},{tab:0,id:"bbIban",label:"IBAN",opt:1},
+  {tab:1,id:"tcName",label:"Name of tax consultant",req:1},{tab:1,id:"tcContact",label:"Contact person",req:1},{tab:1,id:"tcEmail",label:"Email",type:"email",req:1},
+  ...addr("tc").map(f=>({...f,tab:1})),
+  {tab:1,id:"tcPhone",label:"Phone",type:"phone",req:1},
+  {tab:2,id:"invEmails",type:"table",label:"Custodian will accept instructions from these investor emails",min:1,add:"Add email",cols:[
+   {k:"name",label:"Name",req:1,w:160},{k:"desig",label:"Designation",req:1,w:140},{k:"as",label:"Authorised signatory",type:"select",opts:YN,req:1,w:120},{k:"email",label:"Email",req:1,w:200},{k:"rem",label:"Remarks",w:140}]},
+  {tab:2,id:"opsEmails",type:"table",label:"Operational contacts",min:1,add:"Add email",cols:[{k:"email",label:"Email for operational matters",req:1,w:320}]},
+  {tab:2,id:"escEmails",type:"table",label:"Escalation contacts",min:1,add:"Add email",cols:[{k:"email",label:"Email for escalations / critical matters",req:1,w:320}]},
+  {tab:3,id:"mkt",label:"How may we contact you about products and offers?",type:"checks",span:"full",opts:["Post","Email","Social media","SMS / text","Telephone"],help:"Optional. Leave all unticked to receive no marketing."},
+  {tab:3,id:"grpShare",label:"May we share your details with group entities or partners for marketing?",type:"radio",stack:1,req:1,span:"full",opts:["Yes, group companies may contact me","Yes, partners may contact me","No, neither may contact me"]},
+  {tab:3,id:"custAddr",label:"Use the custodian's address as your correspondence address?",type:"yn",req:1},
+  ...addr("corr",s=>s.custAddr==="No").map(f=>({...f,tab:3})),
+  {tab:3,id:"odiDecl",label:"Offshore derivative instruments (ODI)",type:"radio",stack:1,req:1,span:"full",opts:[
+   "We are eligible to issue ODIs and have issued them in line with applicable guidelines.",
+   "We have identified and verified the beneficial owner in each subscribing entity as per SEBI guidelines.",
+   "We are not eligible to issue ODIs."]},
+  {tab:3,id:"structDecl",label:"Registration structure",type:"radio",stack:1,req:1,span:"full",opts:[
+   "Seeking registration as an FPI with no underlying fund registered as FPI; BO/SMO details are given in the CAF annexure.",
+   "Seeking registration and have obtained separate FPI registrations for underlying funds; BO/SMO details are in the CAF annexure.",
+   "Not registered as an FPI; applying for underlying funds and listing them with their KYC documents."]}]},
+ {id:"fatca",title:"FATCA details",desc:"Section A decides which entity-type questions apply.",fields:[
+  {type:"h",label:"Section A"},
+  {id:"f1",label:"Is the account holder a government body or an international organisation?",type:"yn",req:1},
+  {id:"f2",label:"Is the account holder listed on a recognised stock exchange?",type:"yn",req:1},
+  {id:"f3",label:"Is the account holder an Indian financial institution?",type:"yn",req:1},
+  {id:"f4",label:"Do you have a GIIN?",type:"yn",req:1,help:"Global Intermediary Identification Number issued under FATCA."},
+  {id:"giin",label:"GIIN",req:1,show:yes("f4"),ph:"XXXXXX.XXXXX.XX.XXX"},
+  {id:"f5",label:"Is the account holder tax resident of any country other than India?",type:"yn",req:1},
+  {id:"f6",label:"Is the entity substantially owned or controlled by non-Indian tax residents or US persons?",type:"yn",req:1},
+  {type:"h",label:"Based on your entity type",show:yes("f6")},
+  {id:"f7",label:"Company: does any natural person hold more than 10% of shares, capital or profits?",type:"yn",req:1,show:yes("f6")},
+  {id:"f8",label:"Unincorporated association: does any natural person hold more than 15% of property, capital or profits?",type:"yn",req:1,show:yes("f6")},
+  {id:"f9",label:"Does any natural person exercise control through voting rights, agreements or other means?",type:"yn",req:1,show:yes("f6")},
+  {id:"f10",label:"Is there a natural person holding the position of senior managing official?",type:"yn",req:1,show:yes("f6")},
+  {type:"h",label:"Section B"},
+  {id:"fConsent",label:"I consent to the information above being shared with tax authorities as required under FATCA/CRS.",type:"check",req:1}]},
+ {id:"crs",title:"CRS self-certification",desc:"Self-certification of tax status under FATCA and CRS.",fields:[
+  {id:"crsName",label:"Name of entity",type:"ro",ro:s=>s.invName},
+  {id:"crsCust",label:"Customer ID (if existing)",opt:1},
+  {id:"crsCons",label:"Entity constitution type",type:"ro",ro:s=>s.constitution},
+  {id:"crsIdType",label:"Entity identification type",type:"select",req:1,opts:["TIN","Company identification number","GIIN","Other"]},
+  {id:"crsIdNo",label:"Entity identification number",req:1},
+  {id:"crsIdC",label:"Identification issuing country",type:"country",req:1},
+  {id:"crsRes",label:"Country of tax residence",type:"country",req:1},
+  {id:"crsCat",label:"Entity category",type:"radio",req:1,opts:["Financial entity","Non-financial entity"]},
+  {id:"crsUsFi",label:"Is the entity a US financial institution?",type:"yn",req:1,show:s=>s.crsCat==="Financial entity"},
+  {id:"crsCls",label:"FATCA classification",type:"select",req:1,opts:["Participating FFI","Non-reporting FI","Registered deemed-compliant FFI","Sponsored FFI","Exempt beneficial owner"],show:s=>s.crsCat==="Financial entity"},
+  {id:"crsNfe",label:"NFE classification",type:"select",req:1,opts:["Active NFE","Passive NFE","Listed NFE"],show:s=>s.crsCat==="Non-financial entity"},
+  {id:"crsGiinOpt",label:"Identification to provide",type:"radio",req:1,opts:["GIIN","Other"],show:s=>s.crsCat==="Financial entity"},
+  {id:"crsGiin",label:"GIIN",req:1,show:s=>s.crsCat==="Financial entity"&&s.crsGiinOpt==="GIIN"},
+  {id:"crsOther",label:"Other identification",req:1,show:s=>s.crsCat==="Financial entity"&&s.crsGiinOpt==="Other"},
+  {type:"h",label:"Declaration"},
+  {type:"note",label:"Under penalty of perjury, I certify that (1) the number shown is the correct taxpayer identification number of the applicant, and (2) the applicant is not a US person, unless stated otherwise above. I will notify the custodian within 30 days if any of this information changes."},
+  {id:"crsDecl",label:"I have read and agree to the declaration above.",type:"check",req:1}]}
+]},
+{id:"docs",title:"Documents",sections:[
+ {id:"docs",title:"Documents",desc:"Generate the forms built from your answers, sign them, and upload signed copies with your supporting documents.",custom:"docs"}]},
+{id:"review",title:"Review & submit",sections:[
+ {id:"review",title:"Review & submit",desc:"Check what is still missing, then submit the application for verification.",custom:"review"}]}
+];
+
+const DOCS=[
+ ["caf","Common application form (CAF)","form"],["cafAnx","Annexure to CAF","form"],["amlQ","AML questionnaire","form"],["autoDebit","Auto debit for charges","form"],
+ ["bankDecl","Bank account opening declaration","form"],["bankSat","Bank satisfactory letter","form"],["benTc","Beneficiary & tax consultant","form"],["boardRes","Board resolution","form"],
+ ["borrow","Borrowing declaration","form"],["deed","Deed of undertaking cum indemnity","form"],["emailAuth","Email authorisation letter","form"],["fatcaCrs","FATCA / CRS declaration","form"],
+ ["fatcaSelf","FATCA self-certification form","form"],["finDecl","Financial declaration","form"],["granular","Granular reporting / SOP declaration","form"],["listSig","List of authorised signatories","form"],
+ ["listDir","List of directors","form"],["mca","Master custody agreement","form"],["otherDecl","Other declarations","form"],["poa","Power of attorney","form"],
+ ["tariff","Tariff sheet (FPI proposal)","form"],["uboDecl","UBO / SMO declaration","form"],
+ ["bankProof","Bank account proof","upload"],["coi","Certificate of incorporation / formation","upload"],["constDocs","Constitutional documents (MoA / AoA / trust deed)","upload"],
+ ["shareStruct","Shareholding structure chart","upload"],["agentPoi","Proof of identity of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"],["agentPoa","Proof of address of representative agent","upload",s=>s.panHas==="No"&&s.repHas==="Yes"]
+];
+
+/* ---------- State ---------- */
+const KEY="fpi-onboarding-v1";
+let uid=100;const nid=()=>"r"+(++uid);
+function sample(){
+ const p=[{_id:"p1",type:"Individual",name:"Ananya Rao",sig:true,ops:true,acct:true,ubo:true},
+  {_id:"p2",type:"Non-individual",name:"Kestrel Holdings Ltd",ubo:true},
+  {_id:"p3",type:"Individual",name:"Daniel Okafor",sig:true,acct:true,smo:true},
+  {_id:"p4",type:"Individual",name:"Mei Lin Tan",sig:true,ubo:true}];
+ return {
+  _sample:true,_status:"In progress",_created:"2026-10-19",_id:"FPI-261019-0142",_tab:{},
+  depository:"Depository A",invType:"Non-individual",product:"FPI",category:"Category II",subcat:"Charitable organisation",constitution:"Private limited company",appType:"New",appMode:"Investing",rm:"onboarding.rm@example.com",
+  invName:"Aster Ridge Charitable Foundation Ltd",incCountry:"Singapore",fundAdmin:"Harbourline Fund Services",mobile_cc:"+65",mobile:"8765 4306",regEmail:"ops@asterridge.example",
+  panHas:"No",panStatus:"Company",aoCode:"International Taxation Ward 1(1), Mumbai",aoArea:"DLC",aoType:"W",aoRange:"406",aoNo:"1",repHas:"Yes",repTitle:"Ms",repFirst:"Priya",repLast:"Menon",
+  rep_l1:"14 Marine Lines",rep_l2:"Churchgate",rep_pin:"400020",rep_city:"Mumbai",rep_state:"Maharashtra",rep_country:"India",repPoi:"Passport",repPoa:POA[0],
+  listed:"No",svcFx:"No",svcGame:"No",svcLend:"No",
+  abbr:"ARCF",otherNameHas:"No",doi:"2014-03-11",doc:"2014-06-01",poi_place:"Singapore",regNo:"201409876K",tin:"T14FC0987K",taxRes:"Singapore",kycPoi:POI[0],kycPoiNo:"201409876K",kycPoa:POA[0],
+  reg_l1:"8 Marina View",reg_l2:"#21-04 Asia Square Tower 1",reg_pin:"018960",reg_city:"Singapore",reg_country:"Singapore",offSame:true,commAddr:"Registered",
+  kycEmail:"ops@asterridge.example",website:"asterridge.example",telReg_cc:"+65",telReg:"6123 4500",
+  incSource:"Contributions / donations",grossInc:"78,40,000",netWorth:"4,06,78,700",asOn:"2026-03-31",occ:"Non-profit",pep:"No",pepRel:"No",
+  hasUbo:"Yes",partyList:p,
+  modeAcct:"Severally",modeWeb:"Jointly",modeCsgl:"Severally",modePcm:"Jointly",
+  sig:{p1:{desig:"Director",acct:true,csgl:true,pcm:true,web:true,maker:true},p3:{desig:"Director",acct:true,checker:true},p4:{desig:"Manager",web:true,checker:true,auto:true}},
+  uboD:{p1:{own:true,ctl:true,share:"40",ctlPct:"40",stake:"Direct",alone:"Alone"},p2:{own:true,share:"35",ctlPct:"35",stake:"Indirect",alone:"Together",via:"Kestrel Holdings Ltd",method:"Shareholding"},p3:{ctl:true,stake:"Direct",alone:"Alone",method:"Senior managing official"},p4:{own:true,share:"25",ctlPct:"25",stake:"Direct",alone:"Alone"}},
+  family:"No",
+  uboF:{p1:{tin:"S8712345D",tinC:"Singapore",cpt:CPT[0],occ:OCC[0]},p4:{tin:"S9023456G",tinC:"Singapore",cpt:CPT[0],occ:OCC[2]}},
+  mim:"No",selfCert:"Yes",coName:"Rahul Iyer",coTitle:"Head of Compliance",coPhone_cc:"+65",coPhone:"6123 4511",coEmail:"compliance@asterridge.example",
+  rgName:"Monetary authority of the home jurisdiction",rgCountry:"Singapore",rgNo:"CMS100845",rgCap:"Registered charity and licensed fund management company (accredited investors only).",viaGc:"No",
+  disc:"No",clubOpt:"We do not share common ownership (directly or indirectly) of more than 50%, or common control, with other FPIs, and are not exempt under regulation 22(4).",
+  priorHas:"No",odiHedge:"NA",bankDecl:"We are not a bank or a subsidiary of a bank.",
+  docs:{caf:{s:"gen"},cafAnx:{s:"gen"},amlQ:{s:"gen"},autoDebit:{s:"up",file:"auto-debit-signed.pdf"},bankDecl:{s:"gen"},boardRes:{s:"up",file:"board-resolution-2026.pdf"},bankProof:{s:"up",file:"bank-statement-sep-2026.pdf"},coi:{s:"up",file:"certificate-of-incorporation.pdf"}}
+ };
+}
+function blank(){return {_status:"In progress",_created:new Date().toISOString().slice(0,10),_id:"FPI-"+new Date().toISOString().slice(2,10).replace(/-/g,"")+"-"+String(Math.floor(Math.random()*9000)+1000),_tab:{},partyList:[],docs:{},offSame:false}}
+function load(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null}catch(e){return null}}
+let S=load()||sample();
+let cur={st:0,se:0};
+try{const c=JSON.parse(localStorage.getItem(KEY+":pos")||"null");if(c&&STEPS[c.st]&&STEPS[c.st].sections[c.se])cur=c}catch(e){}
+const showErr={};
+let saveT;
+function save(){
+ clearTimeout(saveT);
+ $("#saved").textContent="Saving…";
+ saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem(KEY+":pos",JSON.stringify(cur))}catch(e){}
+  $("#saved").textContent="Draft saved "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})},400);
+}
+
+/* ---------- Helpers ---------- */
+function $(s){return document.querySelector(s)}
+const esc=v=>String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const vis=f=>!f.show||f.show(S);
+const isEmpty=v=>v==null||v===""||v===false||(Array.isArray(v)&&!v.length);
+const parties=()=>(S.partyList||[]).filter(p=>p.name);
+const cur$=()=>STEPS[cur.st].sections[cur.se];
+const tip=t=>t?` <span class="tip" tabindex="0" data-tip="${esc(t)}" aria-label="${esc(t)}">?</span>`:"";
+const optsOf=f=>typeof f.opts==="function"?f.opts(S):f.opts;
+
+/* Completion of a section: count required, visible values */
+function status(sec){
+ if(sec.custom==="docs"){const d=docList().filter(x=>x.need);const done=d.filter(x=>x.s==="up").length;return {req:d.length,done,miss:d.filter(x=>x.s!=="up").map(x=>x.name)}}
+ if(sec.custom==="review")return {req:0,done:0,miss:[]};
+ let req=0,done=0;const miss=[];
+ for(const f of sec.fields){
+  if(!vis(f))continue;
+  if(f.type==="table"){
+   const rows=S[f.id]||[];req++;
+   const ok=rows.length>=(f.min||0)&&rows.every(r=>f.cols.every(c=>!c.req||!isEmpty(r[c.k])));
+   if(ok)done++;else miss.push(f.label);continue;
+  }
+  if(f.type==="derived"){
+   const ps=parties().filter(f.filter),store=S[f.id]||{};
+   for(const p of ps){req++;const r=store[p._id]||{};if(f.cols.every(c=>!c.req||!isEmpty(r[c.k])))done++;else miss.push(f.label+" · "+p.name)}
+   if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);if(t>100){req++;miss.push("Shareholding adds up to more than 100%")}}
+   continue;
+  }
+  if(!f.req||!f.id)continue;
+  req++;if(!isEmpty(S[f.id]))done++;else miss.push(f.label);
+ }
+ return {req,done,miss};
+}
+const stateOf=st=>st.req===0?"done":st.done>=st.req&&!st.miss.length?"done":st.done===0?"todo":"part";
+function totals(){let r=0,d=0;STEPS.forEach(s=>s.sections.forEach(x=>{const t=status(x);r+=t.req;d+=Math.min(t.done,t.req)}));return {r,d,pct:r?Math.round(d/r*100):0}}
+
+/* ---------- Render: header & rail ---------- */
+function renderFacts(){
+ const sub=S._status==="Submitted";
+ $("#facts").innerHTML=[
+  ["Application ID",`<span class="mono">${esc(S._id)}</span>`],["Type",esc(S.appType||"—"),1],["Investor",esc(S.invType||"—"),1],["Mode",esc(S.appMode||"—"),1],
+  ["Status",`<span class="pill ${sub?"sub":"draft"}">${sub?"Submitted":"In progress"}</span>`],["Created",`<span class="mono">${esc(fmtDate(S._created))}</span>`,1]
+ ].map(([k,v,o])=>`<div class="fact${o?" opt-hide":""}"><small>${k}</small><b>${v}</b></div>`).join("")+(S._sample?`<span class="pill draft" title="This form is pre-filled with fictional example data">Sample data</span>`:"");
+}
+function fmtDate(d){if(!d)return"—";const x=new Date(d+"T00:00");return isNaN(x)?d:x.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
+function renderRail(){
+ const t=totals();
+ let h=`<div class="prog"><div class="prog-top"><span class="hint">Application complete</span><b class="mono">${t.pct}%</b></div><div class="bar"><i style="width:${t.pct}%"></i></div><p>${t.r-t.d} required item${t.r-t.d===1?"":"s"} left across ${STEPS.length-1} steps.</p></div><nav class="steps">`;
+ STEPS.forEach((s,i)=>{
+  const sts=s.sections.map(status);const r=sts.reduce((a,x)=>a+x.req,0),d=sts.reduce((a,x)=>a+Math.min(x.done,x.req),0);
+  const stt=s.id==="review"?(S._status==="Submitted"?"done":"todo"):(sts.every(x=>stateOf(x)==="done")?"done":d?"part":"todo");
+  h+=`<div class="step${i===cur.st?" on":""}"><button class="step-h" data-go="${i}:0"><span class="num ${stt}">${stt==="done"?"✓":i+1}</span>${esc(s.title)}${r?`<span class="cnt">${d}/${r}</span>`:""}</button>`;
+  if(s.sections.length>1&&i===cur.st){h+=`<ul class="subs">`+s.sections.map((x,j)=>`<li><button class="${j===cur.se?"on":""}" data-go="${i}:${j}"><span class="dot ${stateOf(sts[j])}"></span>${esc(x.title)}</button></li>`).join("")+`</ul>`}
+  h+=`</div>`;
+ });
+ h+=`</nav><div class="rail-foot"><button class="linkbtn" data-act="sample">Reload sample application</button><button class="linkbtn" data-act="blank">Start a blank application</button></div>`;
+ $("#rail").innerHTML=h;
+}
+
+/* ---------- Render: fields ---------- */
+function ctl(f){
+ const v=S[f.id];
+ switch(f.type){
+  case "select":case "country":{const o=f.type==="country"?CN:optsOf(f);return `<select class="sel" id="i-${f.id}" data-k="${f.id}"><option value="">Select…</option>${o.map(x=>`<option${x===v?" selected":""}>${esc(x)}</option>`).join("")}</select>`}
+  case "radio":
+   if(f.stack)return `<div class="stack" role="radiogroup" aria-label="${esc(f.label)}">${f.opts.map((o,i)=>`<label class="choice"><input type="radio" name="${f.id}" id="i-${f.id}-${i}" data-k="${f.id}" value="${esc(o)}"${o===v?" checked":""}><span>${esc(o)}</span></label>`).join("")}</div>`;
+   return seg(f,f.opts);
+  case "textarea":return `<textarea class="in" id="i-${f.id}" data-k="${f.id}">${esc(v)}</textarea>`;
+  case "phone":return `<div class="phone"><select class="sel" id="i-${f.id}-cc" data-k="${f.id}_cc" aria-label="Country code"><option value="">Code</option>${[...new Set(COUNTRIES.map(c=>c[1]))].map(c=>`<option${c===S[f.id+"_cc"]?" selected":""}>${c}</option>`).join("")}</select><input class="in mono" id="i-${f.id}" data-k="${f.id}" inputmode="tel" value="${esc(v)}" aria-label="${esc(f.label)}"></div>`;
+  case "checks":return `<div class="checks">${f.opts.map((o,i)=>`<label class="ck"><input type="checkbox" id="i-${f.id}-${i}" data-k="${f.id}" data-multi="${esc(o)}"${(v||[]).includes(o)?" checked":""}>${esc(o)}</label>`).join("")}</div>`;
+  case "ro":return `<input class="in" id="i-${f.id}" readonly value="${esc(f.ro(S)||"—")}">`;
+  default:{const t=f.type==="date"?"date":f.type==="email"?"email":"text";
+   return `<input class="in${f.type==="num"?" mono":""}" type="${t}" id="i-${f.id}" data-k="${f.id}" value="${esc(v)}"${f.type==="num"?' inputmode="decimal"':""}${f.ph?` placeholder="${esc(f.ph)}"`:""}>`}
+ }
+}
+const seg=(f,opts)=>`<div class="seg" role="radiogroup" aria-label="${esc(f.label)}">${opts.map((o,i)=>`<label><input type="radio" name="${f.id}" id="i-${f.id}-${i}" data-k="${f.id}" value="${esc(o)}"${o===S[f.id]?" checked":""}><span>${esc(o)}</span></label>`).join("")}</div>`;
+function field(f,sid){
+ if(!vis(f))return "";
+ if(f.type==="h")return `<h3 class="sub full">${esc(f.label)}</h3>`;
+ if(f.type==="note")return `<p class="note full ${f.cls||""}">${esc(f.label)}</p>`;
+ if(f.type==="table")return tableHTML(f,sid);
+ if(f.type==="derived")return derivedHTML(f,sid);
+ const err=showErr[sid]&&f.req&&isEmpty(S[f.id]);
+ if(f.type==="yn"||f.type==="ynna")
+  return `<div class="q full${err?" err":""}" id="f-${f.id}"><div class="qt">${esc(f.label)}${f.req?' <span class="req">*</span>':""}${tip(f.help)}</div>${seg(f,f.type==="yn"?YN:YNNA)}</div>`;
+ if(f.type==="check")
+  return `<div class="fld full${err?" err":""}" id="f-${f.id}"><label class="ck"><input type="checkbox" id="i-${f.id}" data-k="${f.id}"${S[f.id]?" checked":""}> ${esc(f.label)}${f.req?' <span class="req">*</span>':""}</label>${err?'<div class="msg">Please confirm to continue</div>':""}</div>`;
+ const span=f.span==="full"?" full":f.span===2?" s2":"";
+ const lab=f.type==="radio"||f.type==="checks"?`<span class="lbl">`:`<label for="i-${f.id}${f.type==="phone"?"":""}">`;
+ const labEnd=f.type==="radio"||f.type==="checks"?`</span>`:`</label>`;
+ return `<div class="fld${span}${err?" err":""}" id="f-${f.id}">${lab}${esc(f.label)}${f.req?'<span class="req">*</span>':f.opt?'<span class="opt">(optional)</span>':""}${tip(f.help)}${labEnd}${ctl(f)}${err?'<div class="msg">This field is required</div>':""}</div>`;
+}
+function cell(c,val,attrs,err){
+ if(c.type==="cb")return `<td class="c"><input type="checkbox" ${attrs}${val?" checked":""} aria-label="${esc(c.label)}"></td>`;
+ const bad=err&&c.req&&isEmpty(val)?' style="border-color:var(--danger)"':"";
+ if(c.type==="select")return `<td><select class="sel" ${attrs}${bad} aria-label="${esc(c.label)}"><option value="">Select…</option>${c.opts.map(o=>`<option${o===val?" selected":""}>${esc(o)}</option>`).join("")}</select></td>`;
+ const t=c.type==="date"?"date":"text";
+ return `<td><input class="in${c.type==="num"?" mono":""}" type="${t}" ${attrs}${bad} value="${esc(val)}" aria-label="${esc(c.label)}"${c.type==="num"?' inputmode="decimal"':""}></td>`;
+}
+const th=c=>`<th${c.type==="cb"?' class="c"':""}${c.w?` style="min-width:${c.w}px"`:""}>${esc(c.label)}${c.req?' <span class="req">*</span>':""}${tip(c.help)}</th>`;
+function tableHTML(f,sid){
+ const rows=S[f.id]||(S[f.id]=[]);const err=showErr[sid];
+ const missing=err&&rows.length<(f.min||0);
+ return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th class="n">#</th>${f.cols.map(th).join("")}<th></th></tr></thead><tbody>
+ ${rows.length?rows.map((r,i)=>`<tr><td class="n">${i+1}</td>${f.cols.map(c=>cell(c,r[c.k],`data-t="${f.id}" data-r="${i}" data-c="${c.k}"`,err)).join("")}<td class="c"><button class="icon-btn" data-act="del" data-t="${f.id}" data-r="${i}" aria-label="Remove row ${i+1}">${trash}</button></td></tr>`).join(""):`<tr><td colspan="${f.cols.length+2}" class="empty">No rows yet.</td></tr>`}
+ </tbody></table></div><div class="tbl-foot"><button class="btn sec sm" data-act="add" data-t="${f.id}">+ ${esc(f.add||"Add row")}</button>${missing?'<span class="msg">Add at least one row</span>':""}</div></div>`;
+}
+function derivedHTML(f,sid){
+ const ps=parties().filter(f.filter),store=S[f.id]||(S[f.id]={});const err=showErr[sid];
+ let foot="";
+ if(f.total){const t=ps.reduce((a,p)=>a+(parseFloat((store[p._id]||{})[f.total])||0),0);foot=`<span class="total${t>100?" bad":""}" id="tot-${f.id}">Total shareholding: ${t}%${t>100?" · exceeds 100%":""}</span>`}
+ return `<div class="full fld" id="f-${f.id}"><span class="lbl">${esc(f.label)}</span><div class="tbl-wrap"><table><thead><tr><th style="min-width:170px">Name</th>${f.cols.map(th).join("")}</tr></thead><tbody>
+ ${ps.length?ps.map(p=>`<tr><td><b>${esc(p.name)}</b><div class="hint">${esc(p.type||"")}${[p.ubo&&"UBO",p.smo&&"SMO",p.sig&&"Signatory"].filter(Boolean).map(x=>" · "+x).join("")}</div></td>${f.cols.map(c=>cell(c,(store[p._id]||{})[c.k],`data-d="${f.id}" data-p="${p._id}" data-c="${c.k}"`,err)).join("")}</tr>`).join(""):`<tr><td colspan="${f.cols.length+1}" class="empty">${esc(f.empty)} <button class="btn ghost sm" data-go="1:0">Go to related parties</button></td></tr>`}
+ </tbody></table></div>${foot?`<div class="tbl-foot">${foot}<span class="hint">Edit names and roles in Related parties.</span></div>`:""}</div>`;
+}
+const trash=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>`;
+
+/* ---------- Render: main ---------- */
+function renderMain(keepScroll){
+ const y=window.scrollY;
+ const step=STEPS[cur.st],sec=cur$();const st=status(sec);
+ let body="";
+ if(sec.custom==="docs")body=docsHTML();
+ else if(sec.custom==="review")body=reviewHTML();
+ else{
+  let fs=sec.fields,tabs="";
+  if(sec.tabs){const ti=S._tab[sec.id]||0;
+   tabs=`<div class="tabs" role="tablist">${sec.tabs.map((t,i)=>{const sub={fields:sec.fields.filter(f=>f.tab===i)};const ss=status(sub);return `<button role="tab" aria-selected="${i===ti}" class="${i===ti?"on":""}" data-tab="${i}"><span class="dot ${stateOf(ss)}"></span>${esc(t)}</button>`}).join("")}</div>`;
+   fs=fs.filter(f=>f.tab===ti)}
+  body=`${tabs}<div class="card"><div class="grid">${fs.map(f=>field(f,sec.id)).join("")}</div></div>`;
+ }
+ const last=cur.st===STEPS.length-1;
+ const sectionCount=step.sections.length>1?` · Section ${cur.se+1} of ${step.sections.length}`:"";
+ $("#main").innerHTML=`<div class="crumb">Step ${cur.st+1} of ${STEPS.length} · ${esc(step.title)}${sectionCount}</div>
+ <div class="sec-head"><div><h1>${esc(sec.title)}</h1><p>${esc(sec.desc||"")}</p></div>${st.req?`<div class="sec-meta"><b class="mono">${Math.min(st.done,st.req)}/${st.req}</b> required complete</div>`:""}</div>
+ ${body}
+ ${last?"":`<div class="actions"><button class="btn sec" data-act="back"${cur.st===0&&cur.se===0?" disabled":""}>Back</button><span class="sp"></span><span class="hint" id="leftHint">${st.miss.length?st.miss.length+" required left in this section":"Section complete"}</span><button class="btn pri" data-act="next">Save & continue</button></div>`}`;
+ renderRail();renderFacts();
+ if(keepScroll)window.scrollTo(0,y);
+}
+function refreshLight(){ // after typing: update counters without re-rendering inputs
+ renderRail();renderFacts();
+ const st=status(cur$());const h=$("#leftHint");if(h)h.textContent=st.miss.length?st.miss.length+" required left in this section":"Section complete";
+ const m=document.querySelector(".sec-meta b");if(m)m.textContent=Math.min(st.done,st.req)+"/"+st.req;
+ document.querySelectorAll(".total").forEach(el=>{const f=cur$().fields.find(x=>"tot-"+x.id===el.id);if(!f)return;const t=parties().filter(f.filter).reduce((a,p)=>a+(parseFloat(((S[f.id]||{})[p._id]||{})[f.total])||0),0);el.textContent=`Total shareholding: ${t}%${t>100?" · exceeds 100%":""}`;el.classList.toggle("bad",t>100)});
+}
+
+/* ---------- Documents ---------- */
+let docFilter="all",docQ="";
+function docList(){
+ const d=S.docs||(S.docs={});const out=[];
+ DOCS.forEach(([id,name,kind,need])=>{if(need&&!need(S))return;const r=d[id]||{};out.push({id,name,kind,group:kind==="form"?"Forms generated from your answers":"Supporting documents",s:r.s||(kind==="form"?"none":"pend"),file:r.file,c:r.c,need:true})});
+ parties().filter(p=>p.sig||p.ubo||p.smo).forEach(p=>{["Proof of identity","Proof of address"].forEach((n,i)=>{if(p.type==="Non-individual"&&i===1)return;const id=`rp-${p._id}-${i}`;const r=d[id]||{};
+  out.push({id,name:`${n} · ${p.name}`,kind:"upload",group:"Related party documents",s:r.s||"pend",file:r.file,c:r.c,need:true})})});
+ (S.extraDocs||[]).forEach(x=>{const r=d[x.id]||{};out.push({id:x.id,name:x.name,kind:"upload",group:"Additional documents",s:r.s||"up",file:r.file,c:r.c,need:false})});
+ return out;
+}
+const SLBL={none:["Not generated","none"],gen:["Ready to sign","gen"],pend:["Upload needed","pend"],up:["Uploaded","up"]};
+let openCmt=null;
+function docsHTML(){
+ const all=docList();let L=all;
+ if(docFilter==="todo")L=L.filter(x=>x.s!=="up");if(docFilter==="done")L=L.filter(x=>x.s==="up");
+ if(docQ)L=L.filter(x=>x.name.toLowerCase().includes(docQ.toLowerCase()));
+ const notGen=all.filter(x=>x.kind==="form"&&x.s==="none").length;
+ const todo=all.filter(x=>x.need&&x.s!=="up").length;
+ const groups=[...new Set(all.map(x=>x.group))];
+ return `<div class="drop" id="drop"><div><b>Upload signed forms and supporting documents</b><div class="hint">PDF, JPG or PNG, up to 10 MB each. Drop a file on any row's Upload button, or add an extra document here.</div></div>
+  <div class="dact"><button class="btn sec" data-act="gen"${notGen?"":" disabled"}>${notGen?`Generate ${notGen} form${notGen>1?"s":""}`:"All forms generated"}</button><label class="btn pri" for="extraFile">Add other document</label><input type="file" id="extraFile" hidden></div></div>
+  <div class="doc-tools"><input class="in" id="docQ" placeholder="Search documents" value="${esc(docQ)}" aria-label="Search documents">
+  <div class="chipset">${[["all",`All · ${all.length}`],["todo",`Action needed · ${todo}`],["done",`Uploaded · ${all.filter(x=>x.s==="up").length}`]].map(([k,l])=>`<button class="chip${docFilter===k?" on":""}" data-filter="${k}">${l}</button>`).join("")}</div></div>
+  ${groups.map(g=>{const items=L.filter(x=>x.group===g);if(!items.length)return"";return `<div class="dgroup"><h3>${esc(g)} <span>${items.filter(x=>x.s==="up").length}/${items.length}</span></h3><div class="dlist">${items.map(docRow).join("")}</div></div>`}).join("")||`<div class="card empty">No documents match.</div>`}`;
+}
+function docRow(x){
+ const [l,c]=SLBL[x.s];
+ const sub=x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan";
+ return `<div class="drow"><div class="dname"><b>${esc(x.name)}</b><small>${esc(sub)}${x.c?" · Note: "+esc(x.c):""}</small></div><span class="st ${c}">${l}</span>
+ <div class="dact">${x.kind==="form"&&x.s!=="none"?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">Download</button>`:""}
+ ${x.s==="none"?"":`<label class="btn sec sm" for="up-${x.id}">${x.s==="up"?"Replace":"Upload"}</label><input type="file" id="up-${x.id}" data-up="${x.id}" hidden>`}
+ <button class="btn ghost sm" data-act="cmt" data-doc="${x.id}" aria-label="Add note">Note</button></div>
+ ${openCmt===x.id?`<div class="cmt"><input class="in" id="cmt-${x.id}" placeholder="Add a note for the operations team" value="${esc(x.c||"")}"><button class="btn pri sm" data-act="cmtSave" data-doc="${x.id}">Save note</button></div>`:""}</div>`;
+}
+
+/* ---------- Review ---------- */
+function reviewHTML(){
+ const sub=S._status==="Submitted";
+ let left=0;
+ const blocks=STEPS.slice(0,-1).map((s,i)=>{
+  const rows=s.sections.map((x,j)=>{const t=status(x);const st=stateOf(t);left+=t.miss.length;
+   return `<div class="rv-row"><div class="t"><span class="dot ${st}"></span><div><b>${esc(x.title)}</b><small>${t.miss.length?esc(t.miss.slice(0,3).join(", ")+(t.miss.length>3?` and ${t.miss.length-3} more`:"")):"Complete"}</small></div></div>${t.miss.length?`<button class="btn sec sm" data-go="${i}:${j}">Fix ${t.miss.length}</button>`:`<button class="btn ghost sm" data-go="${i}:${j}">View</button>`}</div>`}).join("");
+  return `<div class="rv-step"><h3>${i+1}. ${esc(s.title)}</h3>${rows}</div>`;
+ }).join("");
+ const ready=left===0;
+ return `${sub?`<div class="done-banner"><span class="num done">✓</span><div><b>Application submitted</b><div>Reference <span class="mono">${esc(S._id)}</span>. Our team will verify it and reach out by email if anything needs attention.</div></div></div>`:""}
+ <div class="rv">${blocks}</div>
+ <div class="card" style="margin-top:16px"><div class="stack">
+  <label class="ck"><input type="checkbox" id="finalDecl" data-k="_decl"${S._decl?" checked":""}${sub?" disabled":""}> I confirm the information in this application is true and complete, and I am authorised to submit it on behalf of the applicant.</label>
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="btn pri" data-act="submit"${!ready||!S._decl||sub?" disabled":""}>${sub?"Submitted":"Submit application"}</button>
+  <span class="hint">${sub?"":ready?(S._decl?"Ready to submit.":"Tick the declaration to submit."):`${left} item${left>1?"s":""} still missing. Use the Fix buttons above.`}</span></div></div></div>`;
+}
+
+/* ---------- Navigation ---------- */
+function go(st,se){cur={st,se};closeNav();renderMain();window.scrollTo(0,0);save()}
+function next(){
+ const s=STEPS[cur.st];
+ if(cur.se<s.sections.length-1)go(cur.st,cur.se+1);else if(cur.st<STEPS.length-1)go(cur.st+1,0);
+}
+function back(){if(cur.se>0)go(cur.st,cur.se-1);else if(cur.st>0)go(cur.st-1,STEPS[cur.st-1].sections.length-1)}
+let toastT;
+function toast(msg,actLabel,fn){
+ const t=$("#toast");t.innerHTML=`<span>${esc(msg)}</span>${actLabel?`<button id="toastAct">${esc(actLabel)}</button>`:""}`;t.classList.add("show");
+ if(actLabel)$("#toastAct").onclick=()=>{t.classList.remove("show");fn()};
+ clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),actLabel?7000:3000);
+}
+function closeNav(){document.body.classList.remove("nav-open")}
+
+/* ---------- Events ---------- */
+function setFrom(el){
+ if(el.dataset.t){const row=S[el.dataset.t][+el.dataset.r];row[el.dataset.c]=el.type==="checkbox"?el.checked:el.value;return}
+ if(el.dataset.d){const st=S[el.dataset.d]||(S[el.dataset.d]={});const r=st[el.dataset.p]||(st[el.dataset.p]={});r[el.dataset.c]=el.type==="checkbox"?el.checked:el.value;return}
+ const k=el.dataset.k;if(!k)return;
+ if(el.dataset.multi!==undefined){const a=new Set(S[k]||[]);el.checked?a.add(el.dataset.multi):a.delete(el.dataset.multi);S[k]=[...a]}
+ else if(el.type==="checkbox")S[k]=el.checked;
+ else S[k]=el.value;
+ if(k==="category"&&!(SUBCAT[S.category]||[]).includes(S.subcat))S.subcat="";
+}
+const main=$("#main");
+main.addEventListener("input",e=>{
+ const el=e.target;
+ if(el.id==="docQ"){docQ=el.value;renderMain(true);const q=$("#docQ");q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
+ if(el.matches("input[type=text],input[type=email],input:not([type]),textarea")){setFrom(el);if(el.dataset.t==="partyList"&&el.dataset.c==="name"){}refreshLight();save()}
+});
+main.addEventListener("change",e=>{
+ const el=e.target;
+ if(el.dataset.up){const f=el.files[0];if(!f)return;if(f.size>10*1024*1024){toast("That file is over 10 MB. Compress it or split it, then try again.");return}
+  S.docs[el.dataset.up]={...(S.docs[el.dataset.up]||{}),s:"up",file:f.name};renderMain(true);save();toast("Uploaded "+f.name);return}
+ if(el.id==="extraFile"){const f=el.files[0];if(!f)return;S.extraDocs=S.extraDocs||[];const id="x"+Date.now();S.extraDocs.push({id,name:f.name.replace(/\.[^.]+$/,"")});S.docs[id]={s:"up",file:f.name};renderMain(true);save();toast("Added "+f.name);return}
+ if(el.matches("input[type=text],input[type=email],textarea"))return;
+ setFrom(el);save();
+ if(el.dataset.t==="partyList"||el.matches("select,input[type=radio],input[type=checkbox],input[type=date]"))renderMain(true);
+});
+document.addEventListener("click",e=>{
+ const g=e.target.closest("[data-go]");
+ if(g){const [a,b]=g.dataset.go.split(":").map(Number);go(a,b);return}
+ const tb=e.target.closest("[data-tab]");if(tb){S._tab[cur$().id]=+tb.dataset.tab;renderMain(true);save();return}
+ const fl=e.target.closest("[data-filter]");if(fl){docFilter=fl.dataset.filter;renderMain(true);return}
+ const b=e.target.closest("[data-act]");if(!b)return;
+ const a=b.dataset.act;
+ if(a==="next"){
+  const sec=cur$(),st=status(sec);
+  if(st.miss.length){showErr[sec.id]=true;renderMain(true);
+   const first=document.querySelector(".err,.q.err");if(first)first.scrollIntoView({behavior:"smooth",block:"center"});
+   toast(`${st.miss.length} required item${st.miss.length>1?"s":""} still empty. Your answers are saved.`,"Continue anyway",next);
+  }else{toast("Section saved");next()}
+ }
+ if(a==="back")back();
+ if(a==="add"){const t=b.dataset.t;(S[t]=S[t]||[]).push({_id:nid()});renderMain(true);save();
+  const rows=document.querySelectorAll(`[data-t="${t}"][data-r="${S[t].length-1}"]`);const inp=[...rows].find(x=>x.matches("input[type=text],select"));if(inp)inp.focus()}
+ if(a==="del"){const t=b.dataset.t,r=+b.dataset.r;const removed=S[t].splice(r,1)[0];renderMain(true);save();
+  toast("Row removed","Undo",()=>{S[t].splice(r,0,removed);renderMain(true);save()})}
+ if(a==="gen"){DOCS.forEach(([id,,k])=>{if(k==="form"&&!(S.docs[id]&&S.docs[id].s))S.docs[id]={s:"gen"}});renderMain(true);save();toast("Forms generated from your answers. Download, sign and upload them.")}
+ if(a==="dl")toast("Downloads are disabled in this preview build.");
+ if(a==="cmt"){openCmt=openCmt===b.dataset.doc?null:b.dataset.doc;renderMain(true);const i=$("#cmt-"+b.dataset.doc);if(i)i.focus()}
+ if(a==="cmtSave"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),c:$("#cmt-"+id).value.trim()};openCmt=null;renderMain(true);save();toast("Note saved")}
+ if(a==="submit"){S._status="Submitted";renderMain();save();window.scrollTo(0,0)}
+ if(a==="sample"||a==="blank"){
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent=a==="sample"?"Click again to replace your answers with sample data":"Click again to clear every answer";setTimeout(()=>{if(b.isConnected){b.dataset.confirm="";renderRail()}},4000);return}
+  S=a==="sample"?sample():blank();for(const k in showErr)delete showErr[k];cur={st:0,se:0};go(0,0);toast(a==="sample"?"Sample application loaded":"Blank application started")}
+});
+$("#menuBtn").onclick=()=>document.body.classList.add("nav-open");
+$("#scrim").onclick=closeNav;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeNav()});
+/* drag-and-drop onto drop zone adds an extra document */
+document.addEventListener("dragover",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d){e.preventDefault();d.classList.add("over")}});
+document.addEventListener("dragleave",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d)d.classList.remove("over")});
+document.addEventListener("drop",e=>{const d=e.target.closest&&e.target.closest("#drop");if(!d)return;e.preventDefault();d.classList.remove("over");const f=e.dataTransfer.files[0];if(!f)return;
+ S.extraDocs=S.extraDocs||[];const id="x"+Date.now();S.extraDocs.push({id,name:f.name.replace(/\.[^.]+$/,"")});S.docs[id]={s:"up",file:f.name};renderMain(true);save();toast("Added "+f.name)});
+
+renderMain();
+</script>
+</body>
+</html>
