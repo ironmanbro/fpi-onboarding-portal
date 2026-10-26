@@ -24,14 +24,25 @@ A guided onboarding portal for Foreign Portfolio Investors. It is a static front
 | GET | `/api/apps` | List applications |
 | POST | `/api/apps` | Create an application |
 | GET / PUT / DELETE | `/api/apps/:id` | Read, save or delete one |
-| PATCH | `/api/apps/:id` | Change status |
+| POST | `/api/apps/:id/actions` | Workflow actions (submit, reply, query, verify, forward, approve…) |
 | PUT / GET / DELETE | `/api/apps/:id/files/:docId` | Upload, view or remove a document |
 
+## Roles (demo sign-in, no password or OTP)
+| Role | Sees | Can do |
+|---|---|---|
+| Client | Own applications (by the client name typed at sign-in) | Fill in, upload documents, submit, answer queries, resubmit |
+| Ops | All applications, grouped by what needs attention | Pick up, verify or reject documents, raise or close queries, forward to DDP, reject |
+| DDP | Applications forwarded by ops | Approve (issues a registration number), return to ops, raise a query, reject |
+
+Workflow: `In progress → Submitted → Under review → (Query raised ↔ Submitted) → Pending DDP approval → Approved / Rejected`.
+Status, queries, document checks and the audit history are controlled by the server (`POST /api/apps/:id/actions`); clients can only edit while an application is `In progress` or `Query raised`.
+
 ## Demo environment only
-There is no login: anyone with the link can view and edit applications. Use made-up data only. Do not enter real client or KYC information.
+Sign-in has no authentication: anyone with the link can enter under any role. Use made-up data only. Do not enter real client or KYC information.
 
 ## Run locally
 ```
 npx wrangler d1 execute fpi-onboarding-db --local --file migrations/0001_init.sql
+npx wrangler d1 execute fpi-onboarding-db --local --file migrations/0002_roles.sql
 npx wrangler dev
 ```
