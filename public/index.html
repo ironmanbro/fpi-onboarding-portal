@@ -863,20 +863,24 @@ let ME=null;try{ME=JSON.parse(localStorage.getItem(USER_KEY)||"null")}catch(e){}
 if(ME&&!["investor","rm","reviewer","maker","checker","bizchecker"].includes(ME.role))ME=null;
 const ROLE={
  investor:{label:"Investor",title:"Investor",portal:"External portal",home:"Applications",ico:"IN",def:"Aster Ridge Foundation",
-  does:["Register and start an FPI application","Fill in details and upload documents","Respond to remarks and resubmit","Track status until onboarding completes"]},
- rm:{label:"RM",title:"Application RM",portal:"Internal portal",home:"Applications",ico:"RM",def:"Neha · RM",
-  does:["Start applications on behalf of investors","Fill in, upload and submit","Act on returned applications","Generate the welcome letter"]},
- reviewer:{label:"Reviewer",title:"Business Reviewer",portal:"Internal portal",home:"Business review queue",ico:"BR",def:"Rohan · Reviewer",
-  does:["Review submitted applications and documents","Return for rectification with remarks","Approve to the DDP Ops Maker"]},
+  does:["Register and start an FPI application","Fill in details and upload documents","Respond to remarks and resubmit","Sign and upload executed documents, then the PAN"]},
+ rm:{label:"ARM",title:"Application RM",portal:"Internal portal",home:"ARM tray",ico:"AR",def:"Neha · ARM",
+  does:["Fill in applications for assigned investors","Review investor submissions and comment on documents","Generate the final CAF and upload executed documents on NSDL","Generate the welcome letter"]},
+ reviewer:{label:"Reviewer",title:"Business Reviewer",portal:"Internal portal",home:"Investor registrations",ico:"BR",def:"Rohan · Reviewer",
+  does:["Approve or reject investor registrations","Assign a Business Checker (RM) to each investor","View all applications"]},
+ bizchecker:{label:"Biz Checker",title:"Business Checker (RM)",portal:"Internal portal",home:"Business Checker tray",ico:"BC",def:"Meera · Business Checker",
+  does:["Create investor records internally","Assign an Application RM (ARM)","Review applications and approve them to DDP Ops","Return applications with remarks"]},
  maker:{label:"Ops Maker",title:"DDP Ops Maker",portal:"Internal portal",home:"Ops Maker tray",ico:"OM",def:"Priya · Ops Maker",
-  does:["Check application against documents","Run Factiva, FAROS/PFT, AML, LEI and PAN checks","Record Google, FATF, IOSCO, registry, regulatory and SEBI checks","Forward to Ops Checker or return"]},
+  does:["Check application against documents","Run Factiva, FAROS/PFT, AML, LEI and PAN checks","Record Google, FATF, IOSCO, registry, regulatory and SEBI checks","Rerun all checks for final due diligence"]},
  checker:{label:"Ops Checker",title:"DDP Ops Checker",portal:"Internal portal",home:"Ops Checker tray",ico:"OC",def:"Arjun · Ops Checker",
-  does:["Final review of checks and documents","Approve and send the SEBI fee email, return or reject","Submit on NSDL and fetch registration and PAN","Open downstream accounts"]},
- bizchecker:{label:"Biz Checker",title:"Business Checker",portal:"Internal portal",home:"Investor registrations",ico:"BC",def:"Meera · Business Checker",
-  does:["See investor registrations and leads","Authorise registrations","Reject with a reason"]}};
+  does:["Final review of checks and documents","Approve (execution and SEBI fee emails), return or reject","Mark the fee as sighted","Generate the SEBI certificate and open downstream accounts"]}};
 const OWNER_ROLES=["investor","rm"];
 const EDITABLE=["In progress","Returned"];
 const canEdit=()=>!!(ME&&S&&OWNER_ROLES.includes(ME.role)&&EDITABLE.includes(S._status));
+// After the Ops Checker's approval the investor / ARM can only upload executed copies of the documents
+const canExec=()=>!!(ME&&S&&OWNER_ROLES.includes(ME.role)&&S._status==="Execution pending");
+// Review stage held by each internal role (mirrors STAGE in src/index.js)
+const STAGE={rm:["ARM review"],bizchecker:["Business check"],maker:["Maker review","Final due diligence"],checker:["Checker review","Final review"]};
 function renderWho(){$("#who").innerHTML=ME?`<span class="role">${ROLE[ME.role].label}</span><span>${esc(ME.name)}</span><button class="btn ghost sm" data-act="logout">Switch user</button>`:""}
 function renderLogin(){
  S=null;document.body.classList.add("home");renderWho();setSaved("");
@@ -885,23 +889,23 @@ function renderLogin(){
   <button class="btn pri" type="submit">Enter as ${r.title}</button>${k==="investor"?`<button class="btn ghost sm" type="button" data-act="register">New investor? Register</button>`:""}</form>`;
  $("#main").innerHTML=`<div class="login"><div><h1>Sign in to the demo</h1><p>Pick a role to enter. There is no password or OTP in this demo. Investors use the external portal; the other roles are internal users.</p></div>
  <div class="roles">${Object.entries(ROLE).map(card).join("")}</div>
- <div class="flow"><span>How an application moves:</span><b>Investor / RM submits</b>→<b>Business Reviewer</b>→<b>Ops Maker checks</b>→<b>Ops Checker approves</b>→<b>SEBI fee</b>→<b>NSDL registration</b>→<b>Accounts opened</b>→<b>Welcome letter</b></div>
+ <div class="flow"><span>How an application moves:</span><b>Business Reviewer approves registration</b>→<b>Business Checker assigns ARM</b>→<b>Investor / ARM fills in</b>→<b>ARM review</b>→<b>Business Checker</b>→<b>Ops Maker checks</b>→<b>Ops Checker approves</b>→<b>Execution & SEBI fee</b>→<b>NSDL & final due diligence</b>→<b>SEBI certificate</b>→<b>Accounts & welcome letter</b></div>
  <div class="banner"><b>Demo environment.</b> Use made-up data only. NSDL, PAN, LEI, AML and other integrations return simulated responses.</div></div>`;
 }
 function signIn(role,name){ME={role,name:name.trim()||ROLE[role].def};try{localStorage.setItem(USER_KEY,JSON.stringify(ME))}catch(e){}renderWho();homeFilter=null;homeQ="";showHome()}
 async function logout(){if(S)await flush();ME=null;try{localStorage.removeItem(USER_KEY)}catch(e){}history.pushState({},"",location.pathname);renderLogin()}
 
 /* BR-01: external registration. Details are saved as a lead as soon as they are typed, before submission. */
-let regId=null,regT;
+let regId=null,regT,regInternal=false;
 async function call(url,opt={}){
  const r=await fetch(url,{...opt,headers:{"content-type":"application/json",...(opt.headers||{})}});
  const j=await r.json().catch(()=>({}));
  if(!r.ok){const e=new Error(j.error||`The server returned an error (${r.status}).`);e.status=r.status;throw e}
  return j;
 }
-function renderRegister(){
- regId=null;document.body.classList.add("home");renderWho();
- $("#main").innerHTML=`<div class="login" style="max-width:640px"><div><h1>Investor registration</h1><p>Register as an FPI applicant or global custodian. A Business Checker reviews your request; once it is authorised you can sign in and start an application.</p></div>
+function renderRegister(internal){
+ regId=null;regInternal=!!internal;document.body.classList.add("home");renderWho();
+ $("#main").innerHTML=`<div class="login" style="max-width:640px"><div>${internal?`<h1>Create investor</h1><p>Create an investor record. It goes to the Business Reviewer for approval and comes back to you to assign an ARM.</p>`:`<h1>Investor registration</h1><p>Register as an FPI applicant or global custodian. A Business Reviewer reviews your request; once it is authorised you can sign in and start an application.</p>`}</div>
  <form class="card grid" id="regForm" style="grid-template-columns:minmax(0,1fr)">
   <div class="fld"><span class="lbl">Registered user type<span class="req">*</span></span><div class="seg" role="radiogroup" aria-label="Registered user type">${["FPI Applicant","Global Custodian"].map((o,i)=>`<label><input type="radio" name="rt" id="reg-t${i}" value="${o}"${i===0?" checked":""}><span>${o}</span></label>`).join("")}</div></div>
   <div class="fld"><label for="reg-name">Name of the user<span class="req">*</span></label><input class="in" id="reg-name" autocomplete="name"></div>
@@ -909,63 +913,77 @@ function renderRegister(){
   <div class="fld"><label for="reg-phone">Phone number with country code<span class="req">*</span></label><div class="phone"><select class="sel" id="reg-cc" aria-label="Country code"><option value="">Code</option>${[...new Set(COUNTRIES.map(c=>c[1]))].map(c=>`<option>${c}</option>`).join("")}</select><input class="in mono" id="reg-phone" inputmode="tel"></div></div>
   <div class="fld"><label for="reg-email">Email address<span class="req">*</span></label><input class="in" type="email" id="reg-email" autocomplete="email"></div>
   <div class="msg" id="reg-msg" role="alert"></div>
-  <div class="dact" style="justify-content:flex-start"><button class="btn pri" type="submit">Submit for approval</button><button class="btn ghost" type="button" data-act="toLogin">Back to sign in</button></div>
+  <div class="dact" style="justify-content:flex-start"><button class="btn pri" type="submit">Submit for approval</button><button class="btn ghost" type="button" data-act="${internal?"home":"toLogin"}">${internal?"Cancel":"Back to sign in"}</button></div>
  </form></div>`;
 }
-function regData(submit){const g=id=>($("#"+id)||{}).value||"";const cc=g("reg-cc");return {id:regId,submit,user_type:(document.querySelector("[name=rt]:checked")||{}).value,name:g("reg-name").trim(),country:g("reg-country"),phone:(cc?cc+" ":"")+g("reg-phone").trim(),email:g("reg-email").trim()}}
-function saveLead(){clearTimeout(regT);regT=setTimeout(async()=>{const d=regData(false);if(!d.name&&!d.email)return;try{const r=await call("/api/registrations",{method:"POST",body:JSON.stringify(d)});regId=r.id}catch(e){}},800)}
+function regData(submit){const g=id=>($("#"+id)||{}).value||"";const cc=g("reg-cc");return {id:regId,submit,user_type:(document.querySelector("[name=rt]:checked")||{}).value,name:g("reg-name").trim(),country:g("reg-country"),phone:(cc?cc+" ":"")+g("reg-phone").trim(),email:g("reg-email").trim(),...(regInternal?{origin:"Internal",role:ME.role,user:ME.name}:{})}}
+function saveLead(){if(regInternal)return;clearTimeout(regT);regT=setTimeout(async()=>{const d=regData(false);if(!d.name&&!d.email)return;try{const r=await call("/api/registrations",{method:"POST",body:JSON.stringify(d)});regId=r.id}catch(e){}},800)}
 async function submitRegistration(){
  clearTimeout(regT);const d=regData(true);const m=$("#reg-msg");
  const miss=!d.name||!d.country||!$("#reg-phone").value.trim()||!d.email;
  if(miss){m.textContent="Fill in all mandatory fields.";return}
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)){m.textContent="Enter a valid email address.";return}
  try{const r=await call("/api/registrations",{method:"POST",body:JSON.stringify(d)});regId=r.id;
-  $("#main").innerHTML=`<div class="login" style="max-width:640px"><div class="done-banner"><span class="num done">✓</span><div><b>Registration submitted</b><div>Reference <span class="mono">${esc(r.id)}</span>. A Business Checker will review it. Once authorised, an activation link is sent to ${esc(d.email)} (simulated in this demo).</div></div></div><div><button class="btn sec" data-act="toLogin">Back to sign in</button></div></div>`;
+  if(regInternal){toast(`Investor ${d.name} created and sent to the Business Reviewer (${r.id}).`);showHome();return}
+  $("#main").innerHTML=`<div class="login" style="max-width:640px"><div class="done-banner"><span class="num done">✓</span><div><b>Registration submitted</b><div>Reference <span class="mono">${esc(r.id)}</span>. A Business Reviewer will review it. Once authorised, an activation link is sent to ${esc(d.email)} (simulated in this demo).</div></div></div><div><button class="btn sec" data-act="toLogin">Back to sign in</button></div></div>`;
  }catch(e){m.textContent=e.message}
 }
 
-/* BR-02: Business Checker screen */
-let regs=[],regTab="Pending",regRej=null;
+/* Registrations: the Business Reviewer authorises them and assigns a Business Checker (RM) */
+let regs=[],regTab="Pending",regRej=null,revApps=false;
+const nameList=(id,role)=>`<datalist id="${id}"><option value="${esc(ROLE[role].def)}"></option></datalist>`;
+async function loadRegs(){try{regs=(await call("/api/registrations")).registrations;return ""}catch(e){return e.message}}
 async function showRegistrations(){
  document.body.classList.add("home");setSaved("");
  $("#main").innerHTML=`<div class="empty">Loading registrations…</div>`;
- try{regs=(await call("/api/registrations")).registrations;homeErr=""}catch(e){homeErr=e.message}
+ homeErr=await loadRegs();
  renderRegistrations();
 }
 function renderRegistrations(){
- const tabs=[["Pending","Authorise / reject"],["Authorised","Authorised"],["Rejected","Rejected"],["Lead","Leads (not submitted)"]];
+ const tabs=[["Pending","Authorise / reject"],["Authorised","Awaiting ARM"],["Assigned","ARM assigned"],["Rejected","Rejected"],["Lead","Leads (not submitted)"]];
  const list=regs.filter(r=>r.status===regTab);
- $("#main").innerHTML=`<div class="sec-head"><div><h1>Investor registrations</h1><p>Review registration requests from the external portal. Leads are people who started registering but have not submitted yet.</p></div><div class="dact">${repBtns()}</div></div>
- <div class="chipset" style="margin-bottom:14px">${tabs.map(([k,l])=>`<button class="chip${k===regTab?" on":""}" data-regtab="${k}">${l} · ${regs.filter(r=>r.status===k).length}</button>`).join("")}</div>
- ${homeErr?`<div class="note" style="color:var(--danger)">${esc(homeErr)}</div>`:list.length?`<div class="tbl-wrap"><table><thead><tr><th>Reference</th><th>User type</th><th>Name</th><th>Country</th><th>Phone</th><th>Email</th><th>${regTab==="Pending"?"Action":regTab==="Rejected"?"Reason":"Updated"}</th></tr></thead><tbody>
- ${list.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.user_type||"—")}</td><td>${esc(r.name||"—")}</td><td>${esc(r.country||"—")}</td><td class="mono">${esc(r.phone||"—")}</td><td>${esc(r.email||"—")}</td>
-  <td>${regTab==="Pending"?(regRej===r.id?`<div class="row" style="display:flex;gap:6px"><input class="in" id="rr-${esc(r.id)}" placeholder="Reason for rejection"><button class="btn pri sm" data-regdo="Rejected" data-id="${esc(r.id)}">Reject</button></div>`:`<div class="dact" style="justify-content:flex-start"><button class="btn pri sm" data-regdo="Authorised" data-id="${esc(r.id)}">Authorise</button><button class="btn sec sm" data-regrej="${esc(r.id)}">Reject</button></div>`):regTab==="Rejected"?esc(r.reason||""):`<span class="when">${when(r.updated_at)}</span>`}</td></tr>`).join("")}</tbody></table></div>`:`<div class="card empty">No registrations here.</div>`}`;
+ const act=r=>regTab==="Pending"?(regRej===r.id?`<div class="row" style="display:flex;gap:6px"><input class="in" id="rr-${esc(r.id)}" placeholder="Reason for rejection"><button class="btn pri sm" data-regdo="Rejected" data-id="${esc(r.id)}">Reject</button></div>`:
+  `<div class="dact" style="justify-content:flex-start;flex-wrap:nowrap"><input class="in" id="bc-${esc(r.id)}" list="dl-bc" value="${esc(r.bchecker||ROLE.bizchecker.def)}" aria-label="Business Checker (RM) to assign" style="min-width:190px"><button class="btn pri sm" data-regdo="Authorised" data-id="${esc(r.id)}">Authorise</button><button class="btn sec sm" data-regrej="${esc(r.id)}">Reject</button></div>`)
+  :regTab==="Rejected"?esc(r.reason||""):`<span class="when">${when(r.updated_at)}</span>`;
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>Investor registrations</h1><p>Authorise external sign-ups and investors created by a Business Checker, and assign a Business Checker (RM) to each. Leads are people who started registering but have not submitted yet.</p></div><div class="dact">${repBtns()}<button class="btn sec" data-act="regApps">All applications</button></div></div>
+ <div class="chipset" style="margin-bottom:14px">${tabs.map(([k,l])=>`<button class="chip${k===regTab?" on":""}" data-regtab="${k}">${l} · ${regs.filter(r=>r.status===k).length}</button>`).join("")}</div>${nameList("dl-bc","bizchecker")}
+ ${homeErr?`<div class="note" style="color:var(--danger)">${esc(homeErr)}</div>`:list.length?`<div class="tbl-wrap"><table><thead><tr><th>Reference</th><th>Source</th><th>User type</th><th>Name</th><th>Country</th><th>Phone</th><th>Email</th><th>Business Checker</th><th>ARM</th><th>${regTab==="Pending"?"Action":regTab==="Rejected"?"Reason":"Updated"}</th></tr></thead><tbody>
+ ${list.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.origin||"External")}${r.created_by?`<div class="hint">by ${esc(r.created_by)}</div>`:""}</td><td>${esc(r.user_type||"—")}</td><td>${esc(r.name||"—")}</td><td>${esc(r.country||"—")}</td><td class="mono">${esc(r.phone||"—")}</td><td>${esc(r.email||"—")}</td>
+  <td>${esc(regTab==="Pending"?"":r.bchecker||"—")}</td><td>${esc(r.arm||"—")}</td><td>${act(r)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="card empty">No registrations here.</div>`}`;
 }
 async function decideReg(id,decision){
- const reason=decision==="Rejected"?($("#rr-"+id)||{}).value||"":"";
+ const reason=decision==="Rejected"?($("#rr-"+id)||{}).value||"":"",bchecker=decision==="Authorised"?(($("#bc-"+id)||{}).value||"").trim():"";
  if(decision==="Rejected"&&!reason.trim()){toast("Enter the reason for rejection.");return}
- try{await call(`/api/registrations/${encodeURIComponent(id)}/decision`,{method:"POST",body:JSON.stringify({decision,reason,user:ME.name})});regRej=null;
-  toast(decision==="Authorised"?"Registration authorised. Activation link sent (simulated).":"Registration rejected. The applicant is notified by email (simulated).");showRegistrations()}
+ if(decision==="Authorised"&&!bchecker){toast("Enter the Business Checker (RM) to assign.");return}
+ try{await call(`/api/registrations/${encodeURIComponent(id)}/decision`,{method:"POST",body:JSON.stringify({decision,reason,bchecker,user:ME.name})});regRej=null;
+  toast(decision==="Authorised"?`Registration authorised and assigned to ${bchecker}. Activation link sent (simulated).`:"Registration rejected. The applicant is notified by email (simulated).");showRegistrations()}
+ catch(e){toast(e.message)}
+}
+async function assignArm(id){
+ const arm=(($("#arm-"+id)||{}).value||"").trim();if(!arm){toast("Enter the Application RM to assign.");return}
+ try{const r=await call(`/api/registrations/${encodeURIComponent(id)}/assign`,{method:"POST",body:JSON.stringify({arm,user:ME.name})});toast(`ARM ${arm} assigned. Application ${r.app} is in their tray.`);showHome(false)}
  catch(e){toast(e.message)}
 }
 
 /* ---------- Status language ---------- */
-const STCLS={"In progress":"draft","Returned":"s-bad","Business review":"s-info","Maker review":"s-info","Checker review":"s-info","Fee pending":"draft","Ready for NSDL":"s-info","NSDL submitted":"s-info","Registered":"sub","Accounts opened":"sub","Completed":"sub","Rejected":"s-bad","Cancelled":"draft"};
+const STCLS={"In progress":"draft","Returned":"s-bad","ARM review":"s-info","Business check":"s-info","Maker review":"s-info","Checker review":"s-info","Execution pending":"draft","Fee pending":"draft","NSDL upload":"s-info","Final due diligence":"s-info","Final review":"s-info","Registered":"sub","Accounts opened":"sub","Completed":"sub","Rejected":"s-bad","Cancelled":"draft"};
 const pill=s=>`<span class="pill ${STCLS[s]||"draft"}">${esc(s)}</span>`;
-const PENDING_WITH={"In progress":"Investor / RM","Returned":"Investor / RM","Business review":"Business Reviewer","Maker review":"Ops Maker","Checker review":"Ops Checker","Fee pending":"Ops Checker","Ready for NSDL":"Ops Checker","NSDL submitted":"Ops Checker","Registered":"Ops Checker","Accounts opened":"Application RM","Completed":"—","Rejected":"—","Cancelled":"—"};
+const PENDING_WITH={"In progress":"Investor / ARM","Returned":"Investor / ARM","ARM review":"Application RM","Business check":"Business Checker","Maker review":"Ops Maker","Checker review":"Ops Checker","Execution pending":"Investor / ARM","Fee pending":"Ops Checker","NSDL upload":"Application RM","Final due diligence":"Ops Maker","Final review":"Ops Checker","Registered":"Ops Checker","Accounts opened":"Application RM","Completed":"—","Rejected":"—","Cancelled":"—"};
 function nextStep(st,role,wf){
- wf=wf||{};const mine=(PENDING_WITH[st]||"").includes(ROLE[role].title.replace("DDP ",""))||(OWNER_ROLES.includes(role)&&EDITABLE.includes(st))||(role==="rm"&&st==="Accounts opened");
+ wf=wf||{};
  const T={"In progress":"Complete the application and submit it for review.","Returned":"Returned for rectification. Respond to the remarks, correct the application and resubmit.",
-  "Business review":"With the Business Reviewer.","Maker review":"With the DDP Ops Maker for checks.","Checker review":"With the DDP Ops Checker for final review.",
-  "Fee pending":"Approved internally. SEBI registration fee email sent; waiting for the fee to be sighted.","Ready for NSDL":"Fee received. Ready to submit on NSDL.",
-  "NSDL submitted":"Submitted on NSDL"+(wf.nsdlRef?` (${wf.nsdlRef})`:"")+". Waiting for the registration certificate.",
-  "Registered":"Registered"+(wf.regNo?` (${wf.regNo})`:"")+". Downstream accounts to be opened.","Accounts opened":"All accounts opened. Welcome letter pending.",
+  "ARM review":"With the Application RM for review.","Business check":"With the Business Checker for review.","Maker review":"With the DDP Ops Maker for checks.","Checker review":"With the DDP Ops Checker for review.",
+  "Execution pending":"Approved. Sign the documents (by hand or DSC), upload the executed copies and submit them."+(wf.finalCaf?"":" The ARM is preparing the final CAF."),
+  "Fee pending":"Executed documents submitted. SEBI registration fee email sent; waiting for the fee to be sighted.","NSDL upload":"Fee received. The ARM uploads the executed documents on NSDL.",
+  "Final due diligence":"On NSDL"+(wf.nsdlRef?` (${wf.nsdlRef})`:"")+". The Ops Maker reruns the checks.","Final review":"With the Ops Checker for final review and the SEBI certificate.",
+  "Registered":"Registered"+(wf.regNo?` (${wf.regNo})`:"")+"."+(wf.pan?" Downstream accounts to be opened.":" Upload the PAN received by email."),"Accounts opened":"All accounts opened. Welcome letter pending.",
   "Completed":"Onboarding completed.","Rejected":"Rejected. The reason is in the history.","Cancelled":"Cancelled. The reason is in the history."};
- const A={reviewer:{"Business review":"Review the application and documents, then approve to the Ops Maker or return with remarks."},
-  maker:{"Maker review":"Record every check, review documents, then forward to the Ops Checker or return."},
-  checker:{"Checker review":"Confirm the maker's checks and documents, then approve, return or reject.","Fee pending":"Mark the fee as received once it is sighted.","Ready for NSDL":"Submit the application on NSDL.","NSDL submitted":"Fetch the registration certificate and PAN.","Registered":"Initiate downstream account opening."},
-  rm:{"Accounts opened":"Generate the welcome letter to complete onboarding."}};
- return (mine&&A[role]&&A[role][st])||T[st]||"";
+ const A={rm:{"ARM review":"Review the application and documents, then approve to the Business Checker or return with remarks.","Execution pending":wf.finalCaf?"Upload executed copies and submit them.":"Generate the final CAF and share it for execution.","NSDL upload":"Upload the executed documents on NSDL.","Accounts opened":"Generate the welcome letter to complete onboarding."},
+  bizchecker:{"Business check":"Review the application, then approve to the Ops Maker or return with remarks."},
+  maker:{"Maker review":"Record every check, review documents, then forward to the Ops Checker or return.","Final due diligence":"Rerun every check on the NSDL documents, then forward for final review."},
+  checker:{"Checker review":"Confirm the maker's checks and documents, then approve, return or reject.","Fee pending":"Mark the fee as received once it is sighted.","Final review":"Confirm the final checks, then generate the SEBI certificate.","Registered":wf.pan?"Initiate downstream account opening.":"Waiting for the PAN upload."}};
+ const own=OWNER_ROLES.includes(role)&&(EDITABLE.includes(st)||st==="Execution pending"||(st==="Registered"&&!wf.pan));
+ return (A[role]&&A[role][st])||(own&&st==="Registered"?"Upload the PAN received by email.":"")||T[st]||"";
 }
 const when=iso=>{if(!iso)return"";const t=new Date(iso.includes("T")?iso:iso.replace(" ","T")+"Z");const m=Math.round((Date.now()-t)/60000);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":t.toLocaleDateString("en-GB",{day:"2-digit",month:"short"})};
 const stamp=iso=>new Date(iso).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
@@ -980,9 +998,9 @@ async function api(path,opt={}){
 const hhmm=()=>new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
 const setSaved=t=>{$("#saved").textContent=t};
 let saveT,saving=null;
-function save(){if(!canEdit())return;clearTimeout(saveT);setSaved("Saving…");saveT=setTimeout(flush,600)}
+function save(){if(!canEdit()&&!canExec())return;clearTimeout(saveT);setSaved("Saving…");saveT=setTimeout(flush,600)}
 async function flush(){
- clearTimeout(saveT);if(!canEdit())return;
+ clearTimeout(saveT);if(!canEdit()&&!canExec())return;
  const body=JSON.stringify({data:{...S,_pos:cur},progress:totals().pct});
  try{saving=api("/"+encodeURIComponent(S._id),{method:"PUT",body});await saving;setSaved("Saved to cloud "+hhmm())}
  catch(e){if(e.status===409){setSaved("View only");toast(e.message)}else{setSaved("Not saved · retrying");saveT=setTimeout(flush,5000)}}
@@ -991,56 +1009,84 @@ async function flush(){
 window.addEventListener("beforeunload",e=>{if(saveT&&$("#saved").textContent.startsWith("Saving")){flush();e.preventDefault()}});
 
 /* ---------- Home: BR-04 dashboard, one view per role ---------- */
-const ACTIVE=["In progress","Returned","Business review","Maker review","Checker review","Fee pending","Ready for NSDL","NSDL submitted","Registered","Accounts opened"];
+const CLOSED_ST=["Completed","Rejected","Cancelled"];
+const mine=k=>a=>a[k]===ME.name;
+// Filter chips: [key, label, statuses or predicate]
 const HF={
- investor:[["active","Active",ACTIVE],["action","Action needed",["In progress","Returned"]],["closed","Closed",["Completed","Rejected","Cancelled"]],["all","All",null]],
- rm:[["active","Active",ACTIVE],["action","Action needed",["In progress","Returned","Accounts opened"]],["closed","Closed",["Completed","Rejected","Cancelled"]],["all","All",null]],
- reviewer:[["queue","My queue",["Business review"]],["returned","Returned",["Returned"]],["ops","With DDP Ops",["Maker review","Checker review","Fee pending","Ready for NSDL","NSDL submitted","Registered","Accounts opened"]],["all","All",null]],
- maker:[["queue","My tray",["Maker review"]],["checker","With Ops Checker",["Checker review"]],["returned","Returned",["Returned"]],["all","All",null]],
- checker:[["queue","Review",["Checker review"]],["post","Fee · NSDL · accounts",["Fee pending","Ready for NSDL","NSDL submitted","Registered"]],["done","Accounts opened / completed",["Accounts opened","Completed"]],["rejected","Rejected",["Rejected"]],["all","All",null]]};
-let homeFilter=null,homeQ="",cancelId=null;
+ investor:[["active","Active",a=>!CLOSED_ST.includes(a.status)],["action","Action needed",["In progress","Returned","Execution pending","Registered"]],["closed","Closed",CLOSED_ST],["all","All",null]],
+ rm:[["mine","Assigned to me",mine("arm_assigned")],["action","Action needed",["In progress","Returned","ARM review","Execution pending","NSDL upload","Accounts opened"]],["active","Active",a=>!CLOSED_ST.includes(a.status)],["closed","Closed",CLOSED_ST],["all","All",null]],
+ bizchecker:[["queue","Business check",["Business check"]],["mine","My investors",mine("rm_assigned")],["returned","Returned",["Returned"]],["ops","With DDP Ops",["Maker review","Checker review","Execution pending","Fee pending","NSDL upload","Final due diligence","Final review","Registered","Accounts opened"]],["all","All",null]],
+ reviewer:[["all","All",null],["active","Active",a=>!CLOSED_ST.includes(a.status)],["closed","Closed",CLOSED_ST]],
+ maker:[["queue","My tray",["Maker review"]],["final","Final due diligence",["Final due diligence"]],["checker","With Ops Checker",["Checker review","Final review"]],["returned","Returned",["Returned"]],["all","All",null]],
+ checker:[["queue","Review",["Checker review"]],["final","Final review",["Final review"]],["post","Fee · accounts",["Fee pending","Registered"]],["done","Accounts opened / completed",["Accounts opened","Completed"]],["rejected","Rejected",["Rejected"]],["all","All",null]]};
+const matchF=f=>!f?()=>true:typeof f==="function"?f:a=>f.includes(a.status);
+let homeFilter=null,homeQ="",cancelId=null,tariffId=null;
 async function showHome(push){
  if(!ME){renderLogin();return}
  if(S)await flush();
  S=null;document.body.classList.add("home");setSaved("");renderWho();
  if(push!==false)history.pushState({},"",location.pathname);
- if(ME.role==="bizchecker"){showRegistrations();return}
+ if(ME.role==="reviewer"&&!revApps){showRegistrations();return}
  $("#main").innerHTML=`<div class="empty">Loading applications…</div>`;
  try{apps=(await api(ME.role==="investor"?"?owner="+encodeURIComponent(ME.name):"")).apps;homeErr=""}catch(e){homeErr=e.message}
+ if(ME.role==="bizchecker")homeErr=homeErr||await loadRegs();
  renderHome();
 }
 const productOf=a=>{let s=[];try{s=JSON.parse(a.sub_prod||"[]")}catch(e){}return (a.product||"FPI")+(s.length?" · "+s.join(", "):"")};
+const agingOf=a=>Math.max(0,Math.floor((Date.now()-new Date(String(a.created_at).replace(" ","T")+"Z"))/864e5));
+const catOf=a=>a.category?a.category.replace("Category ","CAT "):"NA";
 function homeRows(){
  const fs=HF[ME.role];if(!fs.some(f=>f[0]===homeFilter))homeFilter=fs[0][0];
- const f=fs.find(x=>x[0]===homeFilter);let L=f[2]?apps.filter(a=>f[2].includes(a.status)):apps;
- if(homeQ){const q=homeQ.toLowerCase();L=L.filter(a=>[a.id,a.name,a.owner,a.country,a.status,productOf(a)].some(v=>String(v||"").toLowerCase().includes(q)))}
+ let L=apps.filter(matchF(fs.find(x=>x[0]===homeFilter)[2]));
+ if(homeQ){const q=homeQ.toLowerCase();L=L.filter(a=>[a.id,a.name,a.owner,a.category,a.status,a.rm_assigned,a.arm_assigned,productOf(a)].some(v=>String(v||"").toLowerCase().includes(q)))}
  return L;
 }
+// Business Checker: investors authorised by the Business Reviewer and waiting for an ARM
+function armPanel(){
+ const wait=regs.filter(r=>r.status==="Authorised");
+ return `<div class="card" style="margin-bottom:16px"><h3 class="sub" style="margin-top:0">Assign an ARM · ${wait.length} waiting</h3>${nameList("dl-arm","rm")}
+ ${wait.length?`<div class="tbl-wrap"><table><thead><tr><th>Reference</th><th>Investor</th><th>Source</th><th>Country</th><th>Email</th><th>Business Checker</th><th>Assign ARM</th></tr></thead><tbody>${wait.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.origin||"External")}</td><td>${esc(r.country||"—")}</td><td>${esc(r.email||"—")}</td><td>${esc(r.bchecker||"—")}</td>
+  <td><div class="dact" style="justify-content:flex-start;flex-wrap:nowrap"><input class="in" id="arm-${esc(r.id)}" list="dl-arm" value="${esc(ROLE.rm.def)}" aria-label="ARM to assign" style="min-width:170px"><button class="btn pri sm" data-assign="${esc(r.id)}">Assign</button></div></td></tr>`).join("")}</tbody></table></div>`:`<p class="hint">No authorised investors are waiting for an ARM.</p>`}</div>`;
+}
 function renderHome(){
- const r=ME.role,fs=HF[r],L=homeRows(),internal=r!=="investor",owner=OWNER_ROLES.includes(r);
- const canCancel=a=>owner&&!["Completed","Rejected","Cancelled","NSDL submitted","Registered","Accounts opened"].includes(a.status);
- const intro={investor:"A list of the applications under your purview.",rm:"All investor applications, including ones you started on an investor's behalf.",reviewer:"Applications submitted by investors and RMs, waiting for business review.",maker:"Applications approved by the Business Reviewer, waiting for maker checks.",checker:"Applications forwarded by the Ops Maker, and post-approval steps."}[r];
- $("#main").innerHTML=`<div class="sec-head"><div><h1>${ROLE[r].home}</h1><p>${intro}</p></div>
- <div class="dact">${repBtns()}${owner?`<button class="btn pri" data-act="newApp">+ New application</button>`:""}</div></div>
- <div class="doc-tools"><input class="in" id="homeQ" placeholder="Search by ID, investor, country or status" value="${esc(homeQ)}" aria-label="Search applications">
- <div class="chipset">${fs.map(([k,l,s])=>`<button class="chip${k===homeFilter?" on":""}" data-hf="${k}">${l} · ${s?apps.filter(a=>s.includes(a.status)).length:apps.length}</button>`).join("")}</div>
+ const r=ME.role,fs=HF[r],L=homeRows(),internal=r!=="investor",owner=OWNER_ROLES.includes(r),tariff=r==="rm"||r==="bizchecker";
+ const canCancel=a=>owner&&![...CLOSED_ST,"NSDL upload","Final due diligence","Final review","Registered","Accounts opened"].includes(a.status);
+ const intro={investor:"A list of the applications under your user.",rm:"Applications of the investors assigned to you, and ones you start on an investor's behalf.",bizchecker:"Assign ARMs to authorised investors, create investors, and review applications before DDP Ops.",reviewer:"All applications, read-only.",maker:"Applications approved by the Business Checker, and final due diligence after NSDL upload.",checker:"Applications forwarded by the Ops Maker, and post-approval steps."}[r];
+ const cols=internal?16:9;
+ $("#main").innerHTML=`<div class="sec-head"><div><h1>${r==="reviewer"?"All applications":ROLE[r].home}</h1><p>${intro}</p></div>
+ <div class="dact">${repBtns()}${r==="reviewer"?`<button class="btn sec" data-act="regsBack">Registrations</button>`:""}${r==="bizchecker"?`<button class="btn sec" data-act="createInv">+ Create investor</button>`:""}${owner?`<button class="btn pri" data-act="newApp">+ New application</button>`:""}</div></div>
+ ${r==="bizchecker"&&!homeErr?armPanel():""}
+ <div class="doc-tools"><input class="in" id="homeQ" placeholder="Search by ID, investor, category, status or RM" value="${esc(homeQ)}" aria-label="Search applications">
+ <div class="chipset">${fs.map(([k,l,f])=>`<button class="chip${k===homeFilter?" on":""}" data-hf="${k}">${l} · ${apps.filter(matchF(f)).length}</button>`).join("")}</div>
  <span class="sp" style="flex:1"></span><button class="btn sec sm" data-act="export" title="Download the table as a spreadsheet">Export</button></div>
- ${homeErr?`<div class="note" style="color:var(--danger)">Could not load applications: ${esc(homeErr)} <button class="btn ghost sm" data-act="home">Try again</button></div>`:
+ ${homeErr?`<div class="note" style="color:var(--danger)">Could not load: ${esc(homeErr)} <button class="btn ghost sm" data-act="home">Try again</button></div>`:
  !apps.length?`<div class="card empty">No applications found.${owner?" Start one with New application.":""}</div>`:
  !L.length?`<div class="card empty">No matching records found.</div>`:
- `<div class="tbl-wrap"><table class="apps"><thead><tr><th>Application ID</th><th>Investor name</th><th>Start date</th><th>Product type</th><th>Country</th><th>Investor type</th><th>Status</th><th>Initiated by</th>${internal?"<th>Pending with</th>":""}<th>Actions</th></tr></thead><tbody>
+ `<div class="tbl-wrap"><table class="apps"><thead><tr><th>Application ID</th><th>Investor name</th><th>Start date</th><th>Product type</th><th>Category</th><th>Individual / non-individual</th><th>Last edited</th>${internal?"<th>Estimated AUC</th><th>Account opening charges</th><th>Annual maintenance charges</th>":""}<th>Status</th>${internal?"<th>Pending with</th><th>RM assigned</th><th>ARM assigned</th><th>Aging</th>":""}<th>Actions</th></tr></thead><tbody>
  ${L.map(a=>`<tr><td class="mono">${esc(a.id)}</td><td><b>${esc(a.name||"Untitled")}</b>${internal&&a.owner&&a.owner!==a.name?`<div class="hint">${esc(a.owner)}</div>`:""}<div class="mini"><div class="bar"><i style="width:${a.progress}%"></i></div>${a.progress}%</div></td>
-  <td class="mono">${esc(fmtDate(a.start_date||String(a.created_at).slice(0,10)))}</td><td>${esc(productOf(a))}</td><td>${esc(a.country||"—")}</td><td>${esc(a.inv_type||"—")}</td>
-  <td>${pill(a.status)}${a.reg_no?`<span class="nx mono">${esc(a.reg_no)}</span>`:""}</td><td>${esc(a.init_by||"Investor")}</td>${internal?`<td>${esc(PENDING_WITH[a.status]||"—")}</td>`:""}
-  <td><div class="dact" style="justify-content:flex-start;flex-wrap:nowrap"><button class="btn ${nextStep(a.status,r).match(/^(Review|Record|Confirm|Mark|Submit|Fetch|Initiate|Generate|Complete the)/)?"pri":"sec"} sm" data-open="${esc(a.id)}">${owner&&EDITABLE.includes(a.status)?"Continue":"Open"}</button>
+  <td class="mono">${esc(fmtDate(a.start_date||String(a.created_at).slice(0,10)))}</td><td>${esc(productOf(a))}</td><td>${esc(catOf(a))}</td><td>${esc(a.inv_type||"—")}</td><td><span class="when">${when(a.updated_at)}</span></td>
+  ${internal?`<td>${esc(a.aum||"—")}</td><td>${esc(a.ao_charges||"—")}</td><td>${esc(a.amc_charges||"—")}</td>`:""}
+  <td>${pill(a.status)}${a.reg_no?`<span class="nx mono">${esc(a.reg_no)}</span>`:""}</td>${internal?`<td>${esc(PENDING_WITH[a.status]||"—")}</td><td>${esc(a.rm_assigned||"—")}</td><td>${esc(a.arm_assigned||"—")}</td><td class="mono">${agingOf(a)} d</td>`:""}
+  <td><div class="dact" style="justify-content:flex-start;flex-wrap:nowrap"><button class="btn ${/^(Review|Record|Confirm|Mark|Upload|Generate|Rerun|Initiate|Complete the|Sign)/.test(nextStep(a.status,r))?"pri":"sec"} sm" data-open="${esc(a.id)}">${owner&&EDITABLE.includes(a.status)?"Edit":"View"}</button>
   <button class="btn ghost sm" data-summary="${esc(a.id)}" title="Application summary">Summary</button>
+  ${tariff&&!CLOSED_ST.includes(a.status)?`<button class="btn ghost sm" data-tariff="${esc(a.id)}">Tariff</button><button class="btn ghost sm" data-follow="${esc(a.id)}">Follow up</button>`:""}
   ${canCancel(a)?`<button class="btn ghost sm" data-cancel="${esc(a.id)}">Cancel</button>`:""}${r==="rm"&&a.status==="In progress"?`<button class="icon-btn danger" data-act="delApp" data-id="${esc(a.id)}" aria-label="Delete draft" title="Delete draft">${trash}</button>`:""}</div>
-  ${cancelId===a.id?`<div class="rej-note" style="margin-top:6px;display:flex;gap:6px"><input class="in" id="cancel-reason" placeholder="Reason for cancellation"><button class="btn pri sm" data-act="cancelSend" data-id="${esc(a.id)}">Cancel application</button></div>`:""}</td></tr>`).join("")}
+  ${cancelId===a.id?`<div class="rej-note" style="margin-top:6px;display:flex;gap:6px"><input class="in" id="cancel-reason" placeholder="Reason for cancellation"><button class="btn pri sm" data-act="cancelSend" data-id="${esc(a.id)}">Cancel application</button></div>`:""}
+  ${tariffId===a.id?`<div class="rej-note" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><input class="in" id="tf-aum" placeholder="Estimated AUC" value="${esc(a.aum||"")}" style="width:130px"><input class="in" id="tf-ao" placeholder="Account opening charges" value="${esc(a.ao_charges||"")}" style="width:170px"><input class="in" id="tf-amc" placeholder="Annual maintenance charges" value="${esc(a.amc_charges||"")}" style="width:190px"><button class="btn pri sm" data-act="tariffSave" data-id="${esc(a.id)}">Save tariff</button></div>`:""}</td></tr>`).join("")}
  </tbody></table></div>`}
- <div class="banner" style="margin-top:16px"><b>Demo environment.</b> Use made-up data only. Integrations return simulated responses.</div>`;
+ <div class="banner" style="margin-top:16px"><b>Demo environment.</b> Use made-up data only. Integrations and emails are simulated.</div>`;
+}
+async function homeAct(id,type,extra){return api(`/${encodeURIComponent(id)}/actions`,{method:"POST",body:JSON.stringify({role:ME.role,user:ME.name,type,...extra})})}
+async function saveTariff(id){
+ const g=k=>($("#tf-"+k)||{}).value||"";
+ try{await homeAct(id,"tariff",{tariff:{aum:g("aum"),ao:g("ao"),amc:g("amc")}});tariffId=null;toast("Tariff details successfully updated.");showHome(false)}catch(e){toast(e.message)}
+}
+async function followUp(id){
+ try{const {data}=await homeAct(id,"followup");toast(`Follow-up email sent to ${data.regEmail} (simulated).`)}catch(e){toast("Follow-up failed: "+e.message)}
 }
 function exportApps(){
- const cols=[["Application ID",a=>a.id],["Investor name",a=>a.name],["Start date",a=>a.start_date],["Product type",productOf],["Country",a=>a.country],["Investor type",a=>a.inv_type],["Status",a=>a.status],["Initiated by",a=>a.init_by||"Investor"],["Pending with",a=>PENDING_WITH[a.status]],["Registration no.",a=>a.reg_no]];
+ const cols=[["Application ID",a=>a.id],["Investor name",a=>a.name],["Start date",a=>a.start_date],["Product type",productOf],["Category",catOf],["Individual / non-individual",a=>a.inv_type],["Last edited",a=>a.updated_at],["Status",a=>a.status],["Initiated by",a=>a.init_by||"Investor"],
+  ...(ME.role==="investor"?[]:[["Estimated AUC",a=>a.aum],["Account opening charges",a=>a.ao_charges],["Annual maintenance charges",a=>a.amc_charges],["Pending with",a=>PENDING_WITH[a.status]],["RM assigned",a=>a.rm_assigned],["ARM assigned",a=>a.arm_assigned],["Aging (days)",agingOf]]),["Registration no.",a=>a.reg_no]];
  downloadCSV("applications",cols,homeRows());toast("Application data exported successfully.");
 }
 function downloadCSV(name,cols,L){
@@ -1113,6 +1159,7 @@ function renderBasic(err){
  S=prev;
  $("#basicBody").innerHTML=`${ME.role==="rm"?`<div class="fld full${err&&!NB._owner?" err":""}"><label for="nb-owner">Investor name (application is started on their behalf)<span class="req">*</span></label><input class="in" id="nb-owner" value="${esc(NB._owner)}">${err&&!NB._owner?'<div class="msg">This field is required</div>':""}</div>`:""}
  <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">${html}</div>
+ ${ME.role==="rm"?`<h3 class="sub">Internal details (not shown to the investor)</h3><div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">${[["aum","Estimated AUM"],["ao","Account opening charges"],["amc","Annual maintenance charges"]].map(([k,l])=>`<div class="fld"><label for="nb-t-${k}">${l}<span class="opt">(optional)</span></label><input class="in" id="nb-t-${k}" data-tf="${k}" value="${esc((NB._tariff||{})[k]||"")}"></div>`).join("")}</div>`:""}
  <label class="ck" style="margin-top:12px"><input type="checkbox" id="nb-sample"${NB._sample?" checked":""}> Pre-fill the remaining sections with sample data (demo)</label>`;
 }
 async function proceedBasic(){
@@ -1137,7 +1184,7 @@ async function openApp(id,push){
   if(!OWNER_ROLES.includes(ME.role))cur={st:0,se:0};
   for(const k in showErr)delete showErr[k];
   wfOpen=null;wfForm=null;openRej=null;checkNote={};kycOpen=null;openDsc=null;
-  document.body.classList.remove("home");renderWho();setSaved(canEdit()?"Saved to cloud":"View only");
+  document.body.classList.remove("home");renderWho();setSaved(canEdit()||canExec()?"Saved to cloud":"View only");
   if(push!==false)history.pushState({},"","?app="+encodeURIComponent(id));
   renderMain();window.scrollTo(0,0);
  }catch(e){S=null;homeErr="";await showHome(false);toast(e.message)}
@@ -1147,63 +1194,74 @@ async function doAct(type,extra={}){
   if(OWNER_ROLES.includes(ME.role))await flush();
   const {data}=await api(`/${encodeURIComponent(S._id)}/actions`,{method:"POST",body:JSON.stringify({role:ME.role,user:ME.name,type,...extra})});
   S={...data,_tab:S._tab||{}};S.docs=S.docs||{};wfForm=null;openRej=null;
-  setSaved(canEdit()?"Saved to cloud":"View only");renderMain(true);
-  toast({submit:"Application submitted for review",reply:"Response sent",return:"Returned for rectification",resolve:"Remark closed",doc:"Document updated",approve:ME.role==="checker"?"Approved · SEBI fee email sent (simulated)":"Approved and sent to the Ops Maker",forward:"Forwarded to the Ops Checker",reject:"Application rejected",check:"Check recorded",runcheck:"Check completed (simulated API)",fee:"Fee marked as received",nsdl:"Submitted on NSDL (simulated)",fetchreg:"Registration certificate and PAN retrieved (simulated)",accounts:"Accounts opened (simulated)",welcome:"Onboarding completed"}[type]||"Done");
+  setSaved(canEdit()||canExec()?"Saved to cloud":"View only");renderMain(true);
+  toast({submit:ME.role==="rm"?"Submitted to the Business Checker":"Submitted to the Application RM for review",execsubmit:"Executed documents submitted",finalcaf:"Final CAF generated and shared (simulated)",nsdlupload:"Executed documents uploaded on NSDL (simulated)",certificate:"SEBI certificate generated and retrieved (simulated)",pan:"PAN uploaded",reply:"Response sent",return:"Returned for rectification",resolve:"Remark closed",doc:"Document updated",approve:{checker:"Approved · execution and SEBI fee emails sent (simulated)",rm:"Approved and sent to the Business Checker",bizchecker:"Approved and sent to the Ops Maker"}[ME.role],forward:"Forwarded to the Ops Checker",reject:"Application rejected",check:"Check recorded",runcheck:"Check completed (simulated API)",fee:"Fee marked as received",accounts:"Accounts opened (simulated)",welcome:"Onboarding completed"}[type]||"Done");
   if(type==="welcome")welcomeLetter();
  }catch(e){toast(e.message)}
 }
 
 /* ---------- Workflow panel shown above every section ---------- */
 const CHECK_LIST=[["factiva","Factiva (adverse media)","api"],["faros","FAROS / PFT","api"],["aml","AML screening","api"],["pan","PAN validation (NSDL)","api"],["lei","LEI validation (GLEIF) · optional","api"],["google","Google search","manual"],["fatf","FATF","manual"],["iosco","IOSCO","manual"],["registry","Registry","manual"],["regulatory","Regulatory","manual"],["sebi","SEBI","manual"]];
-function checksHTML(wf,edit){
- const c=wf.checks||{},done=CHECK_LIST.filter(([k])=>c[k]).length;
- return `<div><h3>Prescribed checks · ${done}/${CHECK_LIST.length}</h3><div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Method</th><th>Result</th><th style="min-width:220px">Remark</th>${edit?"<th>Record</th>":"<th>By</th>"}</tr></thead><tbody>
+function checksHTML(wf,edit,key,title){
+ const c=wf[key]||{},done=CHECK_LIST.filter(([k])=>c[k]).length;
+ return `<div><h3>${title} · ${done}/${CHECK_LIST.length}</h3><div class="tbl-wrap"><table><thead><tr><th>Check</th><th>Method</th><th>Result</th><th style="min-width:220px">Remark</th>${edit?"<th>Record</th>":"<th>By</th>"}</tr></thead><tbody>
  ${CHECK_LIST.map(([k,l,m])=>{const r=c[k];return `<tr><td><b>${l}</b></td><td>${m==="api"?"API":"Manual"}</td><td>${r?`<span class="st ${r.s==="Pass"?"ver":r.s==="Fail"?"rej":"none"}">${r.s}</span>`:'<span class="st none">Pending</span>'}</td>
   <td>${edit&&m==="manual"?`<input class="in" id="cn-${k}" placeholder="Remark (required for Fail)" value="${esc(checkNote[k]??(r&&r.note)??"")}">`:`<span class="hint">${esc(r&&r.note||"")}</span>`}</td>
   <td>${edit?(m==="api"?`<button class="btn sec sm" data-check="${k}" data-run="1">${r?"Run again":"Run check"}</button>`:`<div class="dact" style="justify-content:flex-start;flex-wrap:nowrap">${["Pass","NA","Fail"].map(s=>`<button class="btn ${r&&r.s===s?"pri":"sec"} sm" data-check="${k}" data-s="${s}">${s}</button>`).join("")}</div>`):`<span class="hint">${esc(r?r.by:"")}</span>`}</td></tr>`}).join("")}
  </tbody></table></div></div>`;
 }
 function wfHTML(){
- const wf=S._wf||{events:[],queries:[],docReview:{}},st=S._status,r=ME.role;
+ const wf=S._wf||{events:[],queries:[],docReview:{}},st=S._status,r=ME.role,own=OWNER_ROLES.includes(r),atStage=(STAGE[r]||[]).includes(st);
  const openQ=wf.queries.filter(q=>q.status!=="resolved");
- const needsOwner=wf.queries.filter(q=>q.status==="open").length;
- const internal=!OWNER_ROLES.includes(r)||r==="rm";
- if(wfOpen===null)wfOpen=!OWNER_ROLES.includes(r)||st==="Returned"||needsOwner>0||st==="Accounts opened";
+ const needsOwner=wf.queries.filter(q=>q.status==="open"&&q.to!=="maker").length;
+ const internal=!own||r==="rm";
+ const panDue=st==="Registered"&&!wf.pan;
+ if(wfOpen===null)wfOpen=!own||st==="Returned"||needsOwner>0||st==="Accounts opened"||st==="Execution pending"||panDue||atStage;
  const b=(act,label,cls="sec")=>`<button class="btn ${cls} sm" data-act="${act}">${label}</button>`;
  let acts="";
- if(OWNER_ROLES.includes(r)&&EDITABLE.includes(st))acts+=`<button class="btn pri sm" data-go="${STEPS.length-1}:0">${st==="Returned"?"Review & resubmit":"Review & submit"}</button>`;
- if(r==="reviewer"&&st==="Business review")acts+=b("wf-approve","Approve & send to Ops Maker","pri")+b("wf-return","Return for rectification");
- if(r==="maker"&&st==="Maker review")acts+=b("wf-forward","Forward to Ops Checker","pri")+b("wf-return","Return for rectification");
+ if(own&&EDITABLE.includes(st))acts+=`<button class="btn pri sm" data-go="${STEPS.length-1}:0">${st==="Returned"?"Review & resubmit":"Review & submit"}</button>`;
+ if(r==="rm"&&st==="ARM review")acts+=b("wf-approve","Approve & send to Business Checker","pri")+b("wf-return","Return to investor");
+ if(r==="bizchecker"&&st==="Business check")acts+=b("wf-approve","Approve & send to Ops Maker","pri")+b("wf-return","Return for rectification");
+ if(r==="maker"&&atStage)acts+=b("wf-forward",st==="Final due diligence"?"Forward for final review":"Forward to Ops Checker","pri")+b("wf-return","Return for rectification");
  if(r==="checker"){
-  if(st==="Checker review")acts+=b("wf-approve","Approve & send SEBI fee email","pri")+b("wf-return","Return for rectification")+b("wf-reject","Reject");
+  if(st==="Checker review")acts+=b("wf-approve","Approve · send execution & SEBI fee emails","pri");
+  if(st==="Final review")acts+=b("wf-certificate","Generate SEBI certificate","pri");
+  if(atStage)acts+=b("wf-returnMaker","Return to Ops Maker")+b("wf-return","Return to investor / ARM")+b("wf-reject","Reject");
   if(st==="Fee pending")acts+=b("wf-fee","Mark SEBI fee as received","pri");
-  if(st==="Ready for NSDL")acts+=b("wf-nsdl","Submit on NSDL","pri");
-  if(st==="NSDL submitted")acts+=b("wf-fetchreg","Fetch registration certificate & PAN","pri");
-  if(st==="Registered")acts+=b("wf-accounts","Initiate account opening","pri");
+  if(st==="Registered")acts+=wf.pan?b("wf-accounts","Initiate account opening","pri"):`<span class="hint">Waiting for the investor / ARM to upload the PAN.</span>`;
  }
+ if(st==="Execution pending"){
+  if(r==="rm"&&!wf.finalCaf)acts+=b("wf-finalcaf","Generate final CAF & share for execution","pri");
+  if(own)acts+=`<button class="btn sec sm" data-go="${STEPS.length-2}:0">Upload executed documents</button>`+b("wf-execsubmit","Submit executed documents",wf.finalCaf?"pri":"sec");
+ }
+ if(r==="rm"&&st==="NSDL upload")acts+=b("wf-nsdlupload","Mark executed documents uploaded on NSDL","pri");
+ if(own&&panDue)acts+=`<span class="row" style="display:inline-flex;gap:6px"><input class="in mono" id="wf-pan" placeholder="PAN from allotment email" value="${esc(wf.panIssued||"")}" aria-label="PAN" style="width:170px"><button class="btn pri sm" data-act="wf-pan">Upload PAN</button></span>`;
  if(r==="rm"&&st==="Accounts opened")acts+=b("wf-welcome","Generate welcome letter & complete","pri");
  if(st==="Completed")acts+=b("wf-letter","View welcome letter");
  const secOpts=STEPS.slice(0,-1).flatMap(s=>s.sections.map(x=>s.title+" · "+x.title));
- const compose=wfForm?`<div class="compose"><label class="lbl" for="wf-text">${{return:"Remarks for the investor / RM",reject:"Reason for rejection"}[wfForm]}</label>
+ const F={return:["Remarks for the investor / ARM","Return for rectification"],returnMaker:["Remarks for the Ops Maker","Return to Ops Maker"],reject:["Reason for rejection","Confirm rejection"]}[wfForm];
+ const compose=wfForm?`<div class="compose"><label class="lbl" for="wf-text">${F[0]}</label>
   ${wfForm==="return"?`<div class="row"><select class="sel" id="wf-sec" aria-label="Related section"><option value="">Whole application</option>${secOpts.map(o=>`<option>${esc(o)}</option>`).join("")}</select></div>`:""}
-  <textarea class="in" id="wf-text" placeholder="${wfForm==="return"?"e.g. Upload a certified copy of the trust deed":"Explain briefly"}"></textarea>
-  <div class="row"><button class="btn pri sm" data-act="wf-send">${{return:"Return for rectification",reject:"Confirm rejection"}[wfForm]}</button><button class="btn ghost sm" data-act="wf-cancel">Cancel</button></div></div>`:"";
+  <textarea class="in" id="wf-text" placeholder="${wfForm==="reject"?"Explain briefly":"e.g. Upload a certified copy of the trust deed"}"></textarea>
+  <div class="row"><button class="btn pri sm" data-act="wf-send">${F[1]}</button><button class="btn ghost sm" data-act="wf-cancel">Cancel</button></div></div>`:"";
  const qs=wf.queries.slice().reverse().map(q=>{
   const lbl={open:"Awaiting response",answered:"Responded",resolved:"Closed"}[q.status];
-  return `<div class="qi${q.status==="open"?" open":""}"><div class="meta"><b>${esc(q.by)}</b><span>${ROLE[q.from]?ROLE[q.from].title:q.from}</span><span>· ${stamp(q.at)}</span>${q.section?`<span>· ${esc(q.section)}</span>`:""}<span class="st ${q.status==="resolved"?"ver":q.status==="open"?"rej":"gen"}">${lbl}</span></div>
+  const closeBtn=atStage&&(q.status==="answered"||(r==="maker"&&q.to==="maker"&&q.status==="open")||(r==="checker"&&q.from==="maker"&&q.status==="open"));
+  return `<div class="qi${q.status==="open"?" open":""}"><div class="meta"><b>${esc(q.by)}</b><span>${ROLE[q.from]?ROLE[q.from].title:q.from}</span>${q.to==="maker"?"<span>→ Ops Maker</span>":""}<span>· ${stamp(q.at)}</span>${q.section?`<span>· ${esc(q.section)}</span>`:""}<span class="st ${q.status==="resolved"?"ver":q.status==="open"?"rej":"gen"}">${lbl}</span></div>
   <div>${esc(q.text)}</div>
   ${q.reply?`<div class="ans"><div class="meta"><b>${esc(q.repliedBy)}</b><span>· ${stamp(q.repliedAt)}</span></div>${esc(q.reply)}</div>`:""}
-  ${OWNER_ROLES.includes(r)&&q.status==="open"&&EDITABLE.includes(st)?`<div class="row"><input class="in" id="reply-${q.id}" placeholder="Describe what you corrected"><button class="btn pri sm" data-act="wf-reply" data-q="${q.id}">Send response</button></div>`:""}
-  ${["reviewer","maker","checker"].includes(r)&&q.status==="answered"?`<div class="row"><button class="btn sec sm" data-act="wf-resolve" data-q="${q.id}">Accept & close</button></div>`:""}</div>`}).join("");
- const showChecks=["maker","checker","reviewer"].includes(r)&&(st==="Maker review"||Object.keys(wf.checks||{}).length);
- const editChecks=(r==="maker"&&st==="Maker review")||(r==="checker"&&st==="Checker review");
- const reg=wf.nsdlRef||wf.regNo||(wf.accounts||[]).length?`<div><h3>Registration & accounts</h3><dl class="kv">${wf.nsdlRef?`<dt>NSDL reference</dt><dd class="mono">${esc(wf.nsdlRef)}</dd>`:""}${wf.regNo?`<dt>FPI registration no.</dt><dd class="mono">${esc(wf.regNo)}</dd><dt>PAN</dt><dd class="mono">${esc(wf.pan)}</dd>`:""}${(wf.accounts||[]).map(a=>`<dt>${esc(a.name)}</dt><dd class="mono">${esc(a.ref)}</dd>`).join("")}</dl></div>`:"";
- const ev=wf.events.slice().reverse();
+  ${own&&q.status==="open"&&q.to!=="maker"&&EDITABLE.includes(st)?`<div class="row"><input class="in" id="reply-${q.id}" placeholder="Describe what you corrected"><button class="btn pri sm" data-act="wf-reply" data-q="${q.id}">Send response</button></div>`:""}
+  ${closeBtn?`<div class="row"><button class="btn sec sm" data-act="wf-resolve" data-q="${q.id}">${r==="checker"&&q.from==="maker"&&q.status==="open"?"Override & close":"Accept & close"}</button></div>`:""}</div>`}).join("");
+ const ops=["maker","checker","bizchecker","reviewer","rm"].includes(r);
+ const c1=ops&&(st==="Maker review"||Object.keys(wf.checks||{}).length),c2=ops&&(st==="Final due diligence"||Object.keys(wf.checks2||{}).length);
+ const ed=k=>(r==="maker"&&st===STAGE.maker[k])||(r==="checker"&&st===STAGE.checker[k]);
+ const reg=wf.nsdlRef||wf.regNo||(wf.accounts||[]).length?`<div><h3>Registration & accounts</h3><dl class="kv">${wf.nsdlRef?`<dt>NSDL reference</dt><dd class="mono">${esc(wf.nsdlRef)}</dd>`:""}${wf.regNo?`<dt>FPI registration no.</dt><dd class="mono">${esc(wf.regNo)}</dd><dt>PAN</dt><dd class="mono">${esc(wf.pan||"Awaiting upload")}</dd>`:""}${(wf.accounts||[]).map(a=>`<dt>${esc(a.name)}</dt><dd class="mono">${esc(a.ref)}</dd>`).join("")}</dl></div>`:"";
+ const as=wf.assign||{},ev=wf.events.slice().reverse();
  return `<details class="wf"${wfOpen?" open":""}><summary>${pill(st)}<span class="wf-next">${esc(nextStep(st,r,wf))}</span>${internal&&PENDING_WITH[st]&&PENDING_WITH[st]!=="—"?`<span class="hint">Pending with: <b>${PENDING_WITH[st]}</b></span>`:""}${wf.regNo?`<span class="regno">${esc(wf.regNo)}</span>`:""}${openQ.length?`<span class="st rej">${openQ.length} open remark${openQ.length>1?"s":""}</span>`:""}</summary>
- <div class="wf-body">${acts?`<div class="wf-acts">${acts}</div>`:""}${compose}${reg}
- ${showChecks?checksHTML(wf,editChecks):""}
+ <div class="wf-body">${internal&&(as.bchecker||as.arm)?`<p class="hint">Business Checker (RM): <b>${esc(as.bchecker||"—")}</b> · ARM: <b>${esc(as.arm||"—")}</b></p>`:""}${acts?`<div class="wf-acts">${acts}</div>`:""}${compose}${reg}
+ ${c1?checksHTML(wf,ed(0),"checks","Prescribed checks"):""}${c2?checksHTML(wf,ed(1),"checks2","Final due diligence checks"):""}
  ${wf.queries.length?`<div><h3>Remarks</h3><div class="qlist">${qs}</div></div>`:""}
- <details${!OWNER_ROLES.includes(r)?" open":""}><summary>Audit trail · ${ev.length} event${ev.length===1?"":"s"}</summary><ol class="tl">${ev.map(e=>`<li><time>${stamp(e.at)}</time><div><b>${esc(e.what)}</b> <small>by ${esc(e.by)} (${ROLE[e.role]?ROLE[e.role].title:e.role})</small>${e.note?`<div class="hint">${esc(e.note)}</div>`:""}</div></li>`).join("")}</ol></details></div></details>`;
+ <details${!own?" open":""}><summary>Audit trail · ${ev.length} event${ev.length===1?"":"s"}</summary><ol class="tl">${ev.map(e=>`<li><time>${stamp(e.at)}</time><div><b>${esc(e.what)}</b> <small>by ${esc(e.by)} (${ROLE[e.role]?ROLE[e.role].title:e.role})</small>${e.note?`<div class="hint">${esc(e.note)}</div>`:""}</div></li>`).join("")}</ol></details></div></details>`;
 }
 function welcomeLetter(){
  const wf=S._wf||{},w=window.open("","_blank");if(!w){toast("Allow pop-ups for this site to open the welcome letter.");return}
@@ -1220,13 +1278,13 @@ function lockForm(){
  main.querySelectorAll('.card [data-act="add"],.card [data-act="del"],.drop').forEach(e=>{e.hidden=true});
 }
 async function uploadDoc(docId,file,extraName){
- if(!canEdit()){toast("Documents can't be changed right now.");return}
+ if(!canEdit()&&!canExec()){toast("Documents can't be changed right now.");return}
  if(file.size>10*1024*1024){toast("That file is over 10 MB. Compress or split it, then try again.");return}
  toast("Uploading "+file.name+"…");
  try{await flush();
   await api(`/${encodeURIComponent(S._id)}/files/${docId}`,{method:"PUT",body:file,headers:{"content-type":file.type||"application/octet-stream","x-file-name":encodeURIComponent(file.name)}});
   if(extraName){S.extraDocs=S.extraDocs||[];S.extraDocs.push({id:docId,name:extraName})}
-  if(docId==="letterhead")S.letterhead={file:file.name,type:file.type};else S.docs[docId]={...(S.docs[docId]||{}),s:"up",file:file.name,demo:false};if(S._wf&&S._wf.docReview)delete S._wf.docReview[docId];renderMain(true);save();toast("Uploaded "+file.name);
+  if(docId==="letterhead")S.letterhead={file:file.name,type:file.type};else S.docs[docId]={...(S.docs[docId]||{}),s:"up",file:file.name,demo:false,exec:canExec()||undefined};if(S._wf&&S._wf.docReview)delete S._wf.docReview[docId];renderMain(true);save();toast("Uploaded "+file.name);
  }catch(e){toast("Upload failed: "+e.message)}
 }
 const fileUrl=id=>`/api/apps/${encodeURIComponent(S._id)}/files/${id}`;
@@ -1402,13 +1460,13 @@ function renderMain(keepScroll){
  const last=cur.st===STEPS.length-1;
  const sectionCount=step.sections.length>1?` · Section ${cur.se+1} of ${step.sections.length}`:"";
  const edit=canEdit();
- const lockMsg=edit?"":OWNER_ROLES.includes(ME.role)?"View only. This application is with the review team, so it can't be edited right now.":"Reviewer view. Fields are read-only; use the panel above to act on this application.";
+ const lockMsg=edit?"":canExec()?"Approved. Only documents can change now: upload the executed copies in Documents, then submit them from the panel above.":OWNER_ROLES.includes(ME.role)?"View only. This application is with the review team, so it can't be edited right now.":"Reviewer view. Fields are read-only; use the panel above to act on this application.";
  $("#main").innerHTML=`${wfHTML()}<div class="crumb">Step ${cur.st+1} of ${STEPS.length} · ${esc(step.title)}${sectionCount}</div>
  <div class="sec-head"><div><h1>${esc(sec.title)}</h1><p>${esc(sec.desc||"")}</p></div>${st.req?`<div class="sec-meta"><b class="mono">${Math.min(st.done,st.req)}/${st.req}</b> required complete</div>`:""}</div>
  ${lockMsg&&sec.custom!=="review"?`<div class="lockbar">${esc(lockMsg)}</div>`:""}
  ${body}
  ${last?"":`<div class="actions"><button class="btn sec" data-act="back"${cur.st===0&&cur.se===0?" disabled":""}>Back</button><span class="sp"></span><span class="hint" id="leftHint">${st.miss.length?st.miss.length+" required left in this section":"Section complete"}</span><button class="btn pri" data-act="${edit?"next":"nextRO"}">${edit?"Save & continue":"Next section"}</button></div>`}`;
- if(!edit)lockForm();
+ if(!edit&&!(sec.custom==="docs"&&canExec()))lockForm();
  renderRail();renderFacts();
  if(keepScroll)window.scrollTo(0,y);
 }
@@ -1451,7 +1509,7 @@ let docFilter="all",docQ="",openDsc=null;
 const LH=new Set(["bankDecl","benTc","boardRes","borrow","emailAuth","finDecl","granular","listSig","listDir","otherDecl","uboDecl"]);
 function docList(){
  const d=S.docs||(S.docs={});const out=[];
- DOCS.forEach(([id,name,kind,need])=>{if(need&&!need(S))return;const r=d[id]||{};out.push({id,name,kind,lh:LH.has(id),group:kind==="form"?"Forms generated from your answers":"Supporting documents",s:r.s||(kind==="form"?"none":"pend"),file:r.file,c:r.c,demo:r.demo,need:true})});
+ DOCS.forEach(([id,name,kind,need])=>{if(need&&!need(S))return;const r=d[id]||{};out.push({id,name,kind,lh:LH.has(id),group:kind==="form"?"Forms generated from your answers":"Supporting documents",s:r.s||(kind==="form"?"none":"pend"),file:r.file,exec:r.exec,c:r.c,demo:r.demo,need:true})});
  parties().filter(p=>p.sig||p.ubo||p.smo).forEach(p=>{["Proof of identity","Proof of address"].forEach((n,i)=>{if(p.type==="Non-individual"&&i===1)return;const id=`rp-${p._id}-${i}`;const r=d[id]||{},k="kyc_"+p._id+"_";
   out.push({id,name:`${n} · ${p.name}`,meta:i?S[k+"poa"]:[S[k+"poi"],S[k+"poiNo"]].filter(Boolean).join(" · "),kind:"upload",group:"Related party documents",s:r.s||"pend",file:r.file,c:r.c,demo:r.demo,need:true})})});
  (S.extraDocs||[]).forEach(x=>{const r=d[x.id]||{};out.push({id:x.id,name:x.name,kind:"upload",lh:true,group:"Additional documents",s:r.s||"up",file:r.file,c:r.c,need:false})});
@@ -1462,7 +1520,8 @@ const SLBL={none:["Pending","none"],gen:["Generated","gen"],merged:["Merged","mr
 function docState(x){
  const rv=((S._wf||{}).docReview||{})[x.id];
  if(rv&&rv.s==="rejected")return ["Rejected","rej"];
- if(!EDITABLE.includes(S._status)&&x.file)return (rv&&rv.s==="verified")||x.kind!=="form"?["Completed","ver"]:["Reviewed","gen"];
+ // Execution step: forms stay Reviewed until the executed copy is uploaded; supporting documents are Completed
+ if(!EDITABLE.includes(S._status)&&x.file)return x.kind!=="form"||x.exec?["Completed","ver"]:["Reviewed","gen"];
  return SLBL[x.s];
 }
 let openCmt=null;
@@ -1484,14 +1543,15 @@ function docsHTML(){
 function docRow(x){
  const rv=x.file?((S._wf||{}).docReview||{})[x.id]:null;
  const [l,c]=docState(x);
- const edit=canEdit(),opsCan=({reviewer:"Business review",maker:"Maker review",checker:"Checker review"})[ME.role]===S._status;
+ const edit=canEdit(),ex=canExec()&&x.kind==="form",opsCan=(STAGE[ME.role]||[]).includes(S._status);
  const sub=(x.meta?x.meta+" · ":"")+(x.file?`File: ${x.file}`:x.kind==="form"?(x.s==="none"?"Generate, then sign and upload":x.s==="merged"?"Merged on letterhead. Download, sign and upload":"Download, sign and upload the signed copy"):"Upload a clear scan")
   +(rv?(rv.s==="verified"?` · Verified by ${rv.by}`:` · Rejected by ${rv.by}: ${rv.note}`):"");
  return `<div class="drow"><div class="dname"><b>${esc(x.name)}</b><small>${esc(sub)}${x.c?" · Client note: "+esc(x.c):""}</small></div><span class="st ${c}">${l}</span>
  <div class="dact">${x.kind==="form"&&x.s!=="none"?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">Open form</button>`:""}
  ${edit&&x.lh&&(x.s==="gen"||(x.kind!=="form"&&x.file))?`<button class="btn ghost sm" data-act="merge" data-doc="${x.id}">Merge letterhead</button>`:""}
- ${edit&&x.kind==="form"&&(x.s==="gen"||x.s==="merged")?`<button class="btn ghost sm" data-act="dsc" data-doc="${x.id}">Sign</button>`:""}
+ ${(edit&&x.kind==="form"&&(x.s==="gen"||x.s==="merged"))||(ex&&!x.exec)?`<button class="btn ghost sm" data-act="dsc" data-doc="${x.id}">Sign</button>`:""}
  ${x.file?(x.demo?`<button class="btn ghost sm" data-act="dl" data-doc="${x.id}">View file</button>`:`<a class="btn ghost sm" href="${fileUrl(x.id)}" target="_blank" rel="noopener">View file</a>`):""}
+ ${ex?`<label class="btn sec sm" for="up-${x.id}">${x.exec?"Replace executed copy":"Upload executed copy"}</label><input type="file" id="up-${x.id}" data-up="${x.id}" hidden>`:""}
  ${edit&&x.s!=="none"?`<label class="btn sec sm" for="up-${x.id}">${x.s==="up"?"Replace":"Upload"}</label><input type="file" id="up-${x.id}" data-up="${x.id}" hidden>`:""}
  ${edit?`<button class="btn ghost sm" data-act="cmt" data-doc="${x.id}" aria-label="Add note">Note</button>`:""}
  ${opsCan&&x.file?`<button class="btn sec sm" data-act="docOk" data-doc="${x.id}"${rv&&rv.s==="verified"?" disabled":""}>Verify</button><button class="btn sec sm" data-act="docNo" data-doc="${x.id}">Reject</button>`:""}</div>
@@ -1590,7 +1650,7 @@ document.addEventListener("click",e=>{
  if(a==="dl"){const d=docList().find(x=>x.id===b.dataset.doc);openSummary(d?d.name+(d.demo?" (sample placeholder)":""):"Application form",null,d&&d.s==="merged")}
  if(a==="merge"){if(!S.letterhead){toast("Upload your letterhead before merging documents.");return}const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),s:"merged"};renderMain(true);save();toast("Merged on your letterhead.")}
  if(a==="dsc"){openDsc=openDsc===b.dataset.doc?null:b.dataset.doc;renderMain(true)}
- if(a==="dscYes"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),s:"up",file:id+"-signed-dsc.pdf",demo:true,dsc:true};openDsc=null;renderMain(true);save();toast("Signed on the DSC provider's site and attached (simulated).")}
+ if(a==="dscYes"){const id=b.dataset.doc;S.docs[id]={...(S.docs[id]||{}),s:"up",file:id+"-signed-dsc.pdf",demo:true,dsc:true,exec:canExec()||undefined};openDsc=null;renderMain(true);save();toast("Signed on the DSC provider's site and attached (simulated).")}
  if(a==="dscNo"){openDsc=null;renderMain(true);toast("Download the form, sign it by hand and upload the signed copy.")}
  if(a==="kycClose"){kycOpen=null;renderMain(true)}
  if(a==="kycSave"){const p=parties().find(x=>x._id===kycOpen);if(!p)return;const t=status({fields:kycFields(p)});
@@ -1601,11 +1661,17 @@ document.addEventListener("click",e=>{
  if(a==="submit"){doAct("submit").then(()=>window.scrollTo(0,0))}
  if(a==="nextRO")next();
  if(a==="logout")logout();
- if(["wf-approve","wf-forward","wf-fee","wf-nsdl","wf-fetchreg","wf-accounts","wf-welcome"].includes(a))doAct(a.slice(3));
+ if(["wf-approve","wf-forward","wf-fee","wf-certificate","wf-accounts","wf-welcome","wf-finalcaf","wf-nsdlupload"].includes(a))doAct(a.slice(3));
+ if(a==="wf-execsubmit"){const left=docList().filter(x=>x.kind==="form"&&x.need&&!x.exec).length;if(left){toast(`Upload executed copies of ${left} form${left>1?"s":""} first (by hand or DSC).`);return}doAct("execsubmit")}
+ if(a==="wf-pan"){const v=($("#wf-pan")||{}).value||"";doAct("pan",{text:v.trim()})}
+ if(a==="regApps"){revApps=true;showHome()}
+ if(a==="regsBack"){revApps=false;showHome()}
+ if(a==="createInv"){renderRegister(true)}
+ if(a==="tariffSave")saveTariff(b.dataset.id);
  if(a==="wf-letter")welcomeLetter();
- if(["wf-reject","wf-return"].includes(a)){wfForm=a.slice(3);wfOpen=true;renderMain(true);const t=$("#wf-text");if(t)t.focus()}
+ if(["wf-reject","wf-return","wf-returnMaker"].includes(a)){wfForm=a.slice(3);wfOpen=true;renderMain(true);const t=$("#wf-text");if(t)t.focus()}
  if(a==="wf-cancel"){wfForm=null;renderMain(true)}
- if(a==="wf-send"){const text=$("#wf-text").value.trim();if(!text){toast("Write a note first.");return}const sec=$("#wf-sec");doAct(wfForm,{text,section:sec?sec.value:""})}
+ if(a==="wf-send"){const text=$("#wf-text").value.trim();if(!text){toast("Write a note first.");return}const sec=$("#wf-sec");doAct(wfForm==="returnMaker"?"return":wfForm,{text,section:sec?sec.value:"",to:wfForm==="returnMaker"?"maker":"owner"})}
  if(a==="wf-reply"){const i=$("#reply-"+b.dataset.q);const text=i&&i.value.trim();if(!text){toast("Write your answer first.");return}doAct("reply",{qid:b.dataset.q,text})}
  if(a==="wf-resolve")doAct("resolve",{qid:b.dataset.q});
  if(a==="docOk"){const d=docList().find(x=>x.id===b.dataset.doc);doAct("doc",{docId:b.dataset.doc,docName:d?d.name:"",s:"verified"})}
@@ -1631,6 +1697,9 @@ document.addEventListener("click",e=>{
  const rp=e.target.closest("[data-rep]");if(rp){rep.q="";showReport(rp.dataset.rep);return}
  const h=e.target.closest("[data-hf]");if(h){homeFilter=h.dataset.hf;renderHome();return}
  const sm=e.target.closest("[data-summary]");if(sm){summaryOf(sm.dataset.summary);return}
+ const as=e.target.closest("[data-assign]");if(as){assignArm(as.dataset.assign);return}
+ const tf=e.target.closest("[data-tariff]");if(tf){tariffId=tariffId===tf.dataset.tariff?null:tf.dataset.tariff;renderHome();return}
+ const fu=e.target.closest("[data-follow]");if(fu){followUp(fu.dataset.follow);return}
  const cn=e.target.closest("[data-cancel]");if(cn){cancelId=cancelId===cn.dataset.cancel?null:cn.dataset.cancel;renderHome();const i=$("#cancel-reason");if(i)i.focus();return}
  const rt=e.target.closest("[data-regtab]");if(rt){regTab=rt.dataset.regtab;regRej=null;renderRegistrations();return}
  const rr=e.target.closest("[data-regrej]");if(rr){regRej=rr.dataset.regrej;renderRegistrations();const i=$("#rr-"+regRej);if(i)i.focus();return}
@@ -1643,11 +1712,11 @@ document.addEventListener("toggle",e=>{if(e.target.classList&&e.target.classList
 function route(){const q=new URLSearchParams(location.search),id=q.get("app");if(q.has("register")&&!ME){renderRegister();return}!ME?renderLogin():id?openApp(id,false):showHome(false)}
 /* Basic Information pop-up and registration form keep their own state */
 const dlg=$("#basicDlg");
-const nbSet=el=>{if(el.id==="nb-owner"){NB._owner=el.value;return false}if(el.id==="nb-sample"){NB._sample=el.checked;return false}const k=el.dataset.k;if(!k)return false;
+const nbSet=el=>{if(el.id==="nb-owner"){NB._owner=el.value;return false}if(el.dataset.tf){NB._tariff={...(NB._tariff||{}),[el.dataset.tf]:el.value};return false}if(el.id==="nb-sample"){NB._sample=el.checked;return false}const k=el.dataset.k;if(!k)return false;
  if(el.dataset.multi!==undefined){const a=new Set(NB[k]||[]);el.checked?a.add(el.dataset.multi):a.delete(el.dataset.multi);NB[k]=[...a]}else NB[k]=el.value;
  if(k==="category")NB.subcat="";return k==="category"};
 dlg.addEventListener("input",e=>{nbSet(e.target)});
-dlg.addEventListener("change",e=>{nbSet(e.target);if(e.target.id!=="nb-owner")renderBasic()});
+dlg.addEventListener("change",e=>{nbSet(e.target);if(e.target.id!=="nb-owner"&&!e.target.dataset.tf)renderBasic()});
 document.addEventListener("input",e=>{if(e.target.closest("#regForm"))saveLead()});
 document.addEventListener("change",e=>{if(e.target.closest("#regForm"))saveLead()});
 document.addEventListener("submit",e=>{if(e.target.id==="regForm"){e.preventDefault();submitRegistration()}});

@@ -14,6 +14,6 @@ JS (`/* ---------- Name ---------- */`): Reference data, Schema (form fields; `S
 
 ## Rules
 - Keep the site unbranded: no bank, vendor or depository names in text.
-- Requirements come from the BRS (not in the repo). Roles: investor, rm, reviewer, maker, checker, bizchecker. Workflow fields (`_status`, `_wf`, `_owner`, `_initBy`) are server-owned; never let the client PUT change them.
+- Requirements come from the BRS (not in the repo). Roles: investor, rm (Application RM, "ARM"), reviewer (Business Reviewer: registrations), bizchecker (Business Checker (RM): assigns ARMs, reviews applications), maker, checker. Workflow fields (`_status`, `_wf`, `_owner`, `_initBy`, `_tariff`) are server-owned; never let the client PUT change them. In "Execution pending" a PUT may only change `docs` / `letterhead`.
 - External integrations (NSDL, PAN, LEI, AML, Factiva, FAROS) are simulated in `act()` and labelled "(simulated)".
 - No build step and no npm dependencies in the repo. Use wrangler from a scratch folder for local testing.
